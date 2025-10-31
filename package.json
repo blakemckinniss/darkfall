@@ -80,7 +80,6 @@
     "postcss": "^8.5",
     "prettier": "^3.6.2",
     "stylelint": "^16.25.0",
-    "stylelint-config-prettier": "^9.0.5",
     "stylelint-config-standard": "^39.0.1",
     "stylelint-order": "^7.0.0",
     "tailwindcss": "^4.1.9",

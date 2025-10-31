@@ -1,7 +1,6 @@
 {
   "extends": [
-    "stylelint-config-standard",
-    "stylelint-config-prettier"
+    "stylelint-config-standard"
   ],
   "plugins": [
     "stylelint-order"
@@ -47,7 +46,9 @@
           "layer",
           "variants",
           "responsive",
-          "screen"
+          "screen",
+          "theme",
+          "custom-variant"
         ]
       }
     ],
@@ -55,6 +56,15 @@
     "custom-property-pattern": null,
     "no-descending-specificity": null,
     "declaration-block-no-redundant-longhand-properties": null,
-    "media-feature-range-notation": null
+    "media-feature-range-notation": null,
+    "import-notation": null,
+    "lightness-notation": null,
+    "hue-degree-notation": null,
+    "alpha-value-notation": null,
+    "color-function-notation": null,
+    "comment-empty-line-before": null,
+    "rule-empty-line-before": null,
+    "keyframes-name-pattern": null,
+    "color-function-alias-notation": null
   }
 }
