@@ -1,0 +1,30 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "words": [
+    "schnell",
+    "mixtral",
+    "shadcn",
+    "tavily",
+    "serena",
+    "clsx",
+    "cmdk",
+    "lucide",
+    "sonner",
+    "vaul",
+    "tailwindcss",
+    "pnpm",
+    "blackfell",
+    "dungeon",
+    "fal"
+  ],
+  "ignorePaths": [
+    "node_modules",
+    ".next",
+    "build",
+    "dist",
+    "pnpm-lock.yaml",
+    "package-lock.json",
+    ".git"
+  ]
+}
