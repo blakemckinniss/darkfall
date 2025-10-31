@@ -35,12 +35,17 @@ This directory contains hook scripts for Claude Code automation.
 **When it runs**: After every Edit or Write tool call
 
 **What it does**:
-- **Auto-formats** code files (.js, .jsx, .ts, .tsx, .mjs, .cjs) with Prettier
+- **Auto-formats** JavaScript/TypeScript files with Prettier
 - **Auto-fixes** ESLint errors where possible with `eslint --fix`
+- **Auto-formats** CSS/SCSS/SASS/LESS files with Prettier
+- **Auto-fixes** style issues with `stylelint --fix`
 - **Silently applies** formatting without blocking or requiring user action
 - **Reports** when formatting is applied
 
-**File types formatted**: JavaScript, TypeScript, JSX, TSX, and module files
+**File types formatted**:
+- JavaScript: .js, .jsx, .mjs, .cjs
+- TypeScript: .ts, .tsx
+- Styles: .css, .scss, .sass, .less
 
 ## Configuration
 

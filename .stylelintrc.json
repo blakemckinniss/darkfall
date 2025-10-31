@@ -1,0 +1,60 @@
+{
+  "extends": [
+    "stylelint-config-standard",
+    "stylelint-config-prettier"
+  ],
+  "plugins": [
+    "stylelint-order"
+  ],
+  "rules": {
+    "order/properties-alphabetical-order": null,
+    "order/properties-order": [
+      "position",
+      "top",
+      "right",
+      "bottom",
+      "left",
+      "z-index",
+      "display",
+      "flex",
+      "flex-direction",
+      "flex-wrap",
+      "justify-content",
+      "align-items",
+      "gap",
+      "grid",
+      "grid-template",
+      "width",
+      "height",
+      "margin",
+      "padding",
+      "border",
+      "background",
+      "color",
+      "font",
+      "text-align",
+      "opacity",
+      "transform",
+      "transition",
+      "animation"
+    ],
+    "at-rule-no-unknown": [
+      true,
+      {
+        "ignoreAtRules": [
+          "tailwind",
+          "apply",
+          "layer",
+          "variants",
+          "responsive",
+          "screen"
+        ]
+      }
+    ],
+    "selector-class-pattern": null,
+    "custom-property-pattern": null,
+    "no-descending-specificity": null,
+    "declaration-block-no-redundant-longhand-properties": null,
+    "media-feature-range-notation": null
+  }
+}
