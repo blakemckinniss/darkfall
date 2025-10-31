@@ -28,3 +28,6 @@ next-env.d.ts
 
 # serena mcp workspace
 .serena/
+
+# claude local settings
+.claude/settings.local.json
