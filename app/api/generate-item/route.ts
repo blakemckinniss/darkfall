@@ -1,5 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { generateText } from "ai"
+import { createGroq } from "@ai-sdk/groq"
+
+const groq = createGroq({
+  apiKey: process.env.GROQ_API_KEY ?? "",
+})
 
 export async function POST(request: NextRequest) {
   try {
@@ -35,7 +40,7 @@ Guidelines:
 - Potions and treasures don't need stats`
 
     const { text } = await generateText({
-      model: "groq/mixtral-8x7b-32768",
+      model: groq("mixtral-8x7b-32768"),
       system: systemPrompt,
       prompt: prompt,
       temperature: 0.8,
