@@ -381,6 +381,10 @@ export function generateEvent(playerStats: PlayerStats, _inventory: InventoryIte
       const consumable = consumables[Math.floor(Math.random() * consumables.length)]
       const location = locations[Math.floor(Math.random() * locations.length)]
 
+      if (!consumable || !location) {
+        return generateEvent(playerStats, _inventory)
+      }
+
       return {
         description: `You discover a ${consumable.name} in ${location}. It radiates magical energy.`,
         entity: consumable.name,
@@ -419,35 +423,43 @@ export function generateEvent(playerStats: PlayerStats, _inventory: InventoryIte
       const mapItem = mapItems[Math.floor(Math.random() * mapItems.length)]
       const location = locations[Math.floor(Math.random() * locations.length)]
 
+      if (!mapItem || !location) {
+        return generateEvent(playerStats, _inventory)
+      }
+
+      // Type narrowing: after guard, these are guaranteed to be defined
+      const validMapItem = mapItem
+      const validLocation = location
+
       return {
-        description: `You discover a ${mapItem.name} in ${location}. It shows the way to ${mapItem.locationName}.`,
-        entity: mapItem.name,
-        entityRarity: mapItem.rarity,
+        description: `You discover a ${validMapItem.name} in ${validLocation}. It shows the way to ${validMapItem.locationName}.`,
+        entity: validMapItem.name,
+        entityRarity: validMapItem.rarity,
         entityData: {
-          name: mapItem.name,
-          rarity: mapItem.rarity,
+          name: validMapItem.name,
+          rarity: validMapItem.rarity,
           type: "map",
-          entrances: mapItem.entrances,
-          icon: mapItem.icon,
+          entrances: validMapItem.entrances,
+          icon: validMapItem.icon,
         },
         choices: [
           {
             text: "Take the map",
             outcome: {
-              message: `You add the ${mapItem.name} to your inventory. It has ${mapItem.entrances} entrances marked.`,
-              entity: mapItem.name,
-              entityRarity: mapItem.rarity,
+              message: `You add the ${validMapItem.name} to your inventory. It has ${validMapItem.entrances} entrances marked.`,
+              entity: validMapItem.name,
+              entityRarity: validMapItem.rarity,
               itemGained: {
                 id: Math.random().toString(36).substr(2, 9),
-                name: mapItem.name,
+                name: validMapItem.name,
                 type: "map",
-                value: mapItem.value,
-                rarity: mapItem.rarity,
-                icon: mapItem.icon,
+                value: validMapItem.value,
+                rarity: validMapItem.rarity,
+                icon: validMapItem.icon,
                 mapData: {
-                  locationName: mapItem.locationName,
-                  entrances: mapItem.entrances,
-                  rarity: mapItem.rarity,
+                  locationName: validMapItem.locationName,
+                  entrances: validMapItem.entrances,
+                  rarity: validMapItem.rarity,
                 },
               },
             },
@@ -467,6 +479,10 @@ export function generateEvent(playerStats: PlayerStats, _inventory: InventoryIte
       const treasure = treasures[Math.floor(Math.random() * treasures.length)]
       const location = locations[Math.floor(Math.random() * locations.length)]
 
+      if (!treasure || !location) {
+        return generateEvent(playerStats, _inventory)
+      }
+
       return {
         description: `You discover a ${treasure.name} in ${location}. It glimmers in the torchlight.`,
         entity: treasure.name,
@@ -475,8 +491,8 @@ export function generateEvent(playerStats: PlayerStats, _inventory: InventoryIte
           name: treasure.name,
           rarity: treasure.rarity,
           type: treasure.type,
-          stats: treasure.stats,
-          icon: treasure.icon,
+          ...(treasure.stats !== undefined && { stats: treasure.stats }),
+          ...(treasure.icon !== undefined && { icon: treasure.icon }),
         },
         choices: [
           {
@@ -600,5 +616,10 @@ export function generateEvent(playerStats: PlayerStats, _inventory: InventoryIte
     },
   ]
 
-  return mysteryEvents[Math.floor(Math.random() * mysteryEvents.length)]
+  const event = mysteryEvents[Math.floor(Math.random() * mysteryEvents.length)]
+  if (!event) {
+    // Fallback to first event (should never happen with non-empty array)
+    return mysteryEvents[0]!
+  }
+  return event
 }

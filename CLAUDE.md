@@ -78,6 +78,24 @@ Required environment variables:
 5. AI APIs generate dynamic content on demand
 6. State persisted back to localStorage after changes
 
+## TypeScript Configuration
+
+This project enforces **strict TypeScript settings** to ensure maximum type safety and prevent runtime errors. The following compiler options are enabled in `tsconfig.json` and **must remain enabled**:
+
+- `strict: true` - Enables all strict type-checking options
+- `noUncheckedIndexedAccess: true` - Arrays/objects accessed with indices return `T | undefined`
+- `noUnusedLocals: true` - Reports errors on unused local variables
+- `noUnusedParameters: true` - Reports errors on unused function parameters
+- `noFallthroughCasesInSwitch: true` - Prevents accidental fallthrough in switch statements
+- `exactOptionalPropertyTypes: true` - Optional properties cannot be assigned `undefined` explicitly
+
+**Guidelines for strict TypeScript:**
+- When accessing arrays with indices, always check for `undefined` before use
+- Remove unused variables and parameters (prefixing with `_` is not sufficient)
+- For optional props in components, use conditional spreading: `{...(value !== undefined && { propName: value })}`
+- Recursively calling functions as fallback is acceptable when array access might be undefined
+- All type errors must be resolved before committing - the build enforces these rules
+
 ## Development Guidelines
 
 - **Never write documentation** unless explicitly requested by the user

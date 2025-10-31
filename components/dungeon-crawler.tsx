@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -169,6 +169,9 @@ export function DungeonCrawler() {
   const [itemPrompt, setItemPrompt] = useState("")
   const [isGeneratingItem, setIsGeneratingItem] = useState(false)
 
+  // Performance optimization: ref for debounced save timeout
+  const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
+
   useEffect(() => {
     const savedState = loadGameState()
     if (savedState) {
@@ -185,17 +188,23 @@ export function DungeonCrawler() {
     }
   }, [])
 
+  // Performance optimization: Debounced game state save (P0)
   useEffect(() => {
-    const gameState = {
-      playerStats: baseStats,
-      inventory,
-      equippedItems,
-      activeEffects,
-      openLocations,
-      activePortrait: playerPortrait,
-      generatedPortraits,
-    }
-    saveGameState(gameState)
+    clearTimeout(saveTimeoutRef.current)
+    saveTimeoutRef.current = setTimeout(() => {
+      const gameState = {
+        playerStats: baseStats,
+        inventory,
+        equippedItems,
+        activeEffects,
+        openLocations,
+        activePortrait: playerPortrait,
+        generatedPortraits,
+      }
+      saveGameState(gameState)
+    }, 500) // Save 500ms after last state change
+
+    return () => clearTimeout(saveTimeoutRef.current)
   }, [
     baseStats,
     inventory,
@@ -206,11 +215,41 @@ export function DungeonCrawler() {
     generatedPortraits,
   ])
 
+  // Force save on tab close/navigation to prevent data loss
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Clear pending timeout and save immediately
+      clearTimeout(saveTimeoutRef.current)
+      const gameState = {
+        playerStats: baseStats,
+        inventory,
+        equippedItems,
+        activeEffects,
+        openLocations,
+        activePortrait: playerPortrait,
+        generatedPortraits,
+      }
+      saveGameState(gameState)
+    }
+
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload)
+  }, [
+    baseStats,
+    inventory,
+    equippedItems,
+    activeEffects,
+    openLocations,
+    playerPortrait,
+    generatedPortraits,
+  ])
+
+  // Performance optimization: Reduced effect polling interval (P0)
   useEffect(() => {
     const interval = setInterval(() => {
       const now = Date.now()
       setActiveEffects((prev) => prev.filter((effect) => effect.endTime > now))
-    }, 100)
+    }, 1000) // Changed from 100ms to 1000ms (1 second is sufficient)
 
     return () => clearInterval(interval)
   }, [])
@@ -261,7 +300,8 @@ export function DungeonCrawler() {
     generateInitialPortrait()
   }, [])
 
-  const calculateTotalStats = () => {
+  // Performance optimization: Memoized stat calculation (P0)
+  const totalStats = useMemo(() => {
     let bonusAttack = 0
     let bonusDefense = 0
     let bonusHealth = 0
@@ -295,9 +335,8 @@ export function DungeonCrawler() {
       effectDefense,
       effectHealth,
     }
-  }
+  }, [baseStats, equippedItems, activeEffects])
 
-  const totalStats = calculateTotalStats()
   const playerStats = {
     ...baseStats,
     attack: totalStats.attack,
