@@ -509,6 +509,7 @@ export function DungeonCrawler() {
     const parts = text.split(new RegExp(`(${entity})`, "gi"))
     return parts.map((part, index) =>
       part.toLowerCase() === entity.toLowerCase() ? (
+        // eslint-disable-next-line react/no-array-index-key
         <span key={index} className={getRarityColor(entityRarity)}>
           {part}
         </span>
@@ -1079,6 +1080,7 @@ export function DungeonCrawler() {
                         <div className="mt-3 flex flex-col gap-2 animate-in fade-in duration-300">
                           {entry.choices.map((choice, choiceIndex) => (
                             <Button
+                              // eslint-disable-next-line react/no-array-index-key
                               key={choiceIndex}
                               variant="ghost"
                               className="justify-start text-left h-auto py-2 px-3 hover:bg-accent/10 hover:text-accent transition-all font-light text-sm"
@@ -1123,6 +1125,7 @@ export function DungeonCrawler() {
                             <div className="mt-3 flex flex-col gap-2 animate-in fade-in duration-300">
                               {entry.choices.map((choice, choiceIndex) => (
                                 <Button
+                                  // eslint-disable-next-line react/no-array-index-key
                                   key={choiceIndex}
                                   variant="ghost"
                                   className="justify-start text-left h-auto py-2 px-3 hover:bg-accent/10 hover:text-accent transition-all font-light text-sm"
