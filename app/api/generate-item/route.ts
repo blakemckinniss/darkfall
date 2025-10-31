@@ -39,7 +39,6 @@ Guidelines:
       system: systemPrompt,
       prompt: prompt,
       temperature: 0.8,
-      maxTokens: 500,
     })
 
     console.log("[v0] Groq response:", text)
@@ -62,6 +61,9 @@ Guidelines:
     return NextResponse.json({ item })
   } catch (error) {
     console.error("[v0] Error generating item:", error)
-    return NextResponse.json({ error: "Failed to generate item. Please try again." }, { status: 500 })
+    return NextResponse.json(
+      { error: "Failed to generate item. Please try again." },
+      { status: 500 }
+    )
   }
 }

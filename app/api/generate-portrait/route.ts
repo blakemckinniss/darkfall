@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     console.log("[v0] fal.ai response:", result)
 
     // Extract the image URL from the result
-    const imageUrl = result.images?.[0]?.url
+    const imageUrl = (result as { images?: { url?: string }[] }).images?.[0]?.url
 
     if (!imageUrl) {
       console.log("[v0] No image URL found in response")

@@ -1275,10 +1275,6 @@ export function DungeonCrawler() {
               value="developer"
               className="flex-1 flex flex-col gap-6 overflow-y-auto overflow-x-hidden mt-0 min-w-0 w-full max-w-full hide-scrollbar"
             >
-              {console.log(
-                "[v0] Developer tab rendered, generatedPortraits count:",
-                generatedPortraits.length
-              )}
               <div className="flex flex-col gap-4 min-w-0 w-full">
                 <div className="pb-6 border-b border-border/30">
                   <div className="text-xs text-muted-foreground uppercase tracking-wider mb-3">
@@ -1349,11 +1345,6 @@ export function DungeonCrawler() {
                     <div className="text-xs text-muted-foreground uppercase tracking-wider mb-3">
                       Portrait Gallery
                     </div>
-                    {console.log(
-                      "[v0] Rendering portrait gallery with",
-                      generatedPortraits.length,
-                      "portraits"
-                    )}
                     <div className="grid grid-cols-2 gap-3">
                       {generatedPortraits.map((portrait) => (
                         <div

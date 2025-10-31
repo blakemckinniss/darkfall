@@ -62,7 +62,7 @@ export interface Location {
 export interface GameEvent {
   description: string
   entity?: string
-  entityRarity?: string
+  entityRarity?: "common" | "uncommon" | "rare" | "epic" | "legendary"
   entityData?: {
     name: string
     rarity: "common" | "uncommon" | "rare" | "epic" | "legendary"
@@ -82,7 +82,7 @@ export interface GameEvent {
     outcome: {
       message: string
       entity?: string
-      entityRarity?: string
+      entityRarity?: "common" | "uncommon" | "rare" | "epic" | "legendary"
       healthChange?: number
       goldChange?: number
       experienceChange?: number
