@@ -36,6 +36,20 @@ if [ -f "$CLAUDE_PROJECT_DIR/package.json" ]; then
   fi
 fi
 
+# Add critical development guidelines from CLAUDE.md
+CONTEXT+=$'\n## Critical Development Guidelines (CLAUDE.md)\n\n'
+CONTEXT+="**These rules are MANDATORY and enforced:**"$'\n'
+CONTEXT+="- ❌ **NEVER write documentation** unless explicitly requested"$'\n'
+CONTEXT+="- 🔍 **Check for existing functionality** before creating new files"$'\n'
+CONTEXT+="- 🎨 **UI/UX is critical** - always consider visual design and user experience"$'\n'
+CONTEXT+="- 💬 **Be assertive** - question unclear requirements or potential issues"$'\n'
+CONTEXT+="- 🔧 **Utilize MCP tools** (serena, tavily) whenever possible"$'\n'
+CONTEXT+="- ➡️  **Provide next steps** after completing tasks"$'\n'
+CONTEXT+="- 🚫 **No demos or examples** - build production-ready code only"$'\n'
+CONTEXT+="- 🏗️  **Prevent technical debt** - write clean, maintainable code from the start"$'\n'
+CONTEXT+="- 📝 **Never version files** - overwrite existing files; git handles versioning"$'\n'
+CONTEXT+="- 💾 **Commit after major changes** - use git to track significant work"$'\n'
+
 # Output context for Claude
 if [ -n "$CONTEXT" ]; then
   echo "## Project Status"

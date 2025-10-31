@@ -12,9 +12,22 @@ This directory contains hook scripts for Claude Code automation.
 - Loads environment variables from `.env` into the session environment
 - Reports current git branch and uncommitted changes
 - Warns if `node_modules` is missing
-- Provides project status context to Claude
+- **Enforces critical CLAUDE.md development guidelines** in context
+- Reminds Claude of mandatory rules (no docs, no demos, use MCP, etc.)
 
 **Environment variables**: Uses `CLAUDE_ENV_FILE` to persist .env variables for the session
+
+**Guidelines enforced**:
+- Never write documentation unless requested
+- Check for duplicates before creating files
+- Always consider UI/UX
+- Be assertive and question unclear requirements
+- Utilize MCP tools
+- Provide next steps
+- No demos or examples
+- Prevent technical debt
+- Never version files manually
+- Commit after major changes
 
 ### UserPromptSubmit Hook (`prompt-validator.sh`)
 
