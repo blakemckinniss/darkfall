@@ -36,12 +36,20 @@ This directory contains hook scripts for Claude Code automation.
 **What it does**:
 - **Validates prompts** against project guidelines
 - **Blocks** attempts to create documentation, demos, or examples (per CLAUDE.md guidelines)
+- **Enforces task completion requirements** (confidence levels, next steps)
 - **Adds context** about uncommitted changes before processing
 - **Reports** linting status to help maintain code quality
 
 **Blocked patterns**:
 - "create README" / "write documentation"
 - "generate example" / "create demo"
+
+**Task requirements enforced**:
+- **Initial confidence (0-100%)** - Must state before starting tasks
+- **Final confidence (0-100%)** - Must state after completing tasks
+- **Zen MCP consultation** - Required when confidence < 80%
+- **Next steps** - Must always provide after task completion
+- **Confidence guidelines** - 90-100% high, 80-89% good, 70-79% uncertain, <70% low
 
 ### PostToolUse Hook (`post-edit-format.sh`)
 
