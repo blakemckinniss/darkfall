@@ -24,7 +24,7 @@ describe("POST /api/generate-portrait", () => {
 
   const createMockRequest = (body: unknown): NextRequest => {
     return {
-      json: async () => body,
+      json: () => Promise.resolve(body),
     } as NextRequest
   }
 
@@ -214,9 +214,7 @@ describe("POST /api/generate-portrait", () => {
 
     it("should handle invalid JSON in request", async () => {
       const request = {
-        json: async () => {
-          throw new Error("Invalid JSON")
-        },
+        json: () => Promise.reject(new Error("Invalid JSON")),
       } as unknown as NextRequest
 
       const response = await POST(request)
