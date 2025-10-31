@@ -1,3 +1,5 @@
+import type { Rarity } from "./types"
+
 export interface PlayerStats {
   health: number
   maxHealth: number
@@ -13,7 +15,7 @@ export interface InventoryItem {
   name: string
   type: "weapon" | "armor" | "accessory" | "potion" | "treasure" | "map" | "consumable"
   value: number
-  rarity: "common" | "uncommon" | "rare" | "epic" | "legendary"
+  rarity: Rarity
   icon: string
   stats?: {
     attack?: number
@@ -23,7 +25,7 @@ export interface InventoryItem {
   mapData?: {
     locationName: string
     entrances: number
-    rarity: "common" | "uncommon" | "rare" | "epic" | "legendary"
+    rarity: Rarity
   }
   consumableEffect?: {
     type: "permanent" | "temporary"
@@ -47,7 +49,7 @@ export interface ActiveEffect {
     maxHealth?: number
   }
   endTime: number // timestamp when effect expires
-  rarity: "common" | "uncommon" | "rare" | "epic" | "legendary"
+  rarity: Rarity
 }
 
 export interface Location {
@@ -55,17 +57,17 @@ export interface Location {
   name: string
   entrancesRemaining: number
   maxEntrances: number
-  rarity: "common" | "uncommon" | "rare" | "epic" | "legendary"
+  rarity: Rarity
   stability: number // Portal stability percentage (0-100)
 }
 
 export interface GameEvent {
   description: string
   entity?: string
-  entityRarity?: "common" | "uncommon" | "rare" | "epic" | "legendary"
+  entityRarity?: Rarity
   entityData?: {
     name: string
-    rarity: "common" | "uncommon" | "rare" | "epic" | "legendary"
+    rarity: Rarity
     type?: string
     stats?: {
       attack?: number
@@ -82,7 +84,7 @@ export interface GameEvent {
     outcome: {
       message: string
       entity?: string
-      entityRarity?: "common" | "uncommon" | "rare" | "epic" | "legendary"
+      entityRarity?: Rarity
       healthChange?: number
       goldChange?: number
       experienceChange?: number

@@ -17,28 +17,33 @@ import {
   type ActiveEffect,
 } from "@/lib/game-engine"
 import { saveGameState, loadGameState, type GeneratedPortrait } from "@/lib/game-state"
+import type { Rarity } from "@/lib/types"
 
 interface LogEntry {
   id: string
   text: string
   timestamp: number
-  entity?: string
-  entityRarity?: "common" | "uncommon" | "rare" | "epic" | "legendary"
-  entityData?: {
-    name: string
-    rarity: "common" | "uncommon" | "rare" | "epic" | "legendary"
-    type?: string
-    stats?: {
-      attack?: number
-      defense?: number
-      health?: number
-    }
-    gold?: number
-    exp?: number
-    entrances?: number
-  }
-  choices?: GameEvent["choices"]
-  showChoices?: boolean
+  entity?: string | undefined
+  entityRarity?: Rarity | undefined
+  entityData?:
+    | {
+        name: string
+        rarity: Rarity
+        type?: string | undefined
+        stats?:
+          | {
+              attack?: number | undefined
+              defense?: number | undefined
+              health?: number | undefined
+            }
+          | undefined
+        gold?: number | undefined
+        exp?: number | undefined
+        entrances?: number | undefined
+      }
+    | undefined
+  choices?: GameEvent["choices"] | undefined
+  showChoices?: boolean | undefined
 }
 
 interface EquippedItems {
@@ -315,7 +320,7 @@ export function DungeonCrawler() {
   const addLogEntry = (
     text: string,
     entity?: string,
-    entityRarity?: "common" | "uncommon" | "rare" | "epic" | "legendary",
+    entityRarity?: Rarity,
     choices?: GameEvent["choices"],
     entityData?: LogEntry["entityData"]
   ) => {
@@ -499,11 +504,7 @@ export function DungeonCrawler() {
     setModalOpen(true)
   }
 
-  const renderTextWithEntities = (
-    text: string,
-    entity?: string,
-    entityRarity?: "common" | "uncommon" | "rare" | "epic" | "legendary"
-  ) => {
+  const renderTextWithEntities = (text: string, entity?: string, entityRarity?: Rarity) => {
     if (!entity) return text
 
     const parts = text.split(new RegExp(`(${entity})`, "gi"))
@@ -517,21 +518,6 @@ export function DungeonCrawler() {
         part
       )
     )
-  }
-
-  const _handleEquip = (item: InventoryItem) => {
-    const slot = item.type as keyof EquippedItems
-    setEquippedItems((prev) => ({
-      ...prev,
-      [slot]: item,
-    }))
-  }
-
-  const _handleUnequip = (slot: keyof EquippedItems) => {
-    setEquippedItems((prev) => ({
-      ...prev,
-      [slot]: undefined,
-    }))
   }
 
   const getRarityColor = (rarity?: string) => {
@@ -663,10 +649,6 @@ export function DungeonCrawler() {
     return `${minutes}:${seconds.toString().padStart(2, "0")}`
   }
 
-  const _getEffectBonusForStat = (stat: "attack" | "defense") => {
-    return activeEffects.reduce((total, effect) => total + (effect.statChanges[stat] || 0), 0)
-  }
-
   const handleDragStart = (e: React.DragEvent, itemId: string) => {
     setDraggedItemId(itemId)
     e.dataTransfer.effectAllowed = "move"
@@ -698,6 +680,7 @@ export function DungeonCrawler() {
 
     const newInventory = [...inventory]
     const [draggedItem] = newInventory.splice(draggedIndex, 1)
+    if (!draggedItem) return
     newInventory.splice(targetIndex, 0, draggedItem)
 
     setInventory(newInventory)
