@@ -17,7 +17,7 @@ import {
   type ActiveEffect,
 } from "@/lib/game-engine"
 import { saveGameState, loadGameState, type GeneratedPortrait } from "@/lib/game-state"
-import type { Rarity } from "@/lib/types"
+import type { Rarity, Stats } from "@/lib/types"
 
 interface LogEntry {
   id: string
@@ -30,13 +30,7 @@ interface LogEntry {
         name: string
         rarity: Rarity
         type?: string | undefined
-        stats?:
-          | {
-              attack?: number | undefined
-              defense?: number | undefined
-              health?: number | undefined
-            }
-          | undefined
+        stats?: Stats | undefined
         gold?: number | undefined
         exp?: number | undefined
         entrances?: number | undefined

@@ -1,4 +1,4 @@
-import type { Rarity } from "./types"
+import type { Rarity, ItemType, EffectType, Stats } from "./types"
 
 export interface PlayerStats {
   health: number
@@ -13,41 +13,27 @@ export interface PlayerStats {
 export interface InventoryItem {
   id: string
   name: string
-  type: "weapon" | "armor" | "accessory" | "potion" | "treasure" | "map" | "consumable"
+  type: ItemType
   value: number
   rarity: Rarity
   icon: string
-  stats?: {
-    attack?: number
-    defense?: number
-    health?: number
-  }
+  stats?: Stats
   mapData?: {
     locationName: string
     entrances: number
     rarity: Rarity
   }
   consumableEffect?: {
-    type: "permanent" | "temporary"
+    type: EffectType
     duration?: number
-    statChanges: {
-      attack?: number
-      defense?: number
-      health?: number
-      maxHealth?: number
-    }
+    statChanges: Stats
   }
 }
 
 export interface ActiveEffect {
   id: string
   name: string
-  statChanges: {
-    attack?: number
-    defense?: number
-    health?: number
-    maxHealth?: number
-  }
+  statChanges: Stats
   endTime: number // timestamp when effect expires
   rarity: Rarity
 }
@@ -69,11 +55,7 @@ export interface GameEvent {
     name: string
     rarity: Rarity
     type?: string
-    stats?: {
-      attack?: number
-      defense?: number
-      health?: number
-    }
+    stats?: Stats
     gold?: number
     exp?: number
     entrances?: number
@@ -335,6 +317,11 @@ export function generateEvent(playerStats: PlayerStats, _inventory: InventoryIte
   if (rand < 0.4) {
     const enemy = enemies[Math.floor(Math.random() * enemies.length)]
     const location = locations[Math.floor(Math.random() * locations.length)]
+
+    if (!enemy || !location) {
+      // Fallback if array access returns undefined (should not happen with non-empty arrays)
+      return generateEvent(playerStats, _inventory)
+    }
 
     return {
       description: `You encounter a ${enemy.name} in ${location}. It brandishes its weapon menacingly.`,
