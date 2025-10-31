@@ -1,0 +1,17 @@
+# Dependencies
+node_modules
+pnpm-lock.yaml
+
+# Build outputs
+.next
+out
+build
+dist
+
+# Config files that should maintain specific formatting
+*.config.js
+*.config.mjs
+*.config.ts
+
+# Generated files
+.serena

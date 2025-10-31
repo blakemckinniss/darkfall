@@ -30,6 +30,18 @@ This directory contains hook scripts for Claude Code automation.
 - "create README" / "write documentation"
 - "generate example" / "create demo"
 
+### PostToolUse Hook (`post-edit-format.sh`)
+
+**When it runs**: After every Edit or Write tool call
+
+**What it does**:
+- **Auto-formats** code files (.js, .jsx, .ts, .tsx, .mjs, .cjs) with Prettier
+- **Auto-fixes** ESLint errors where possible with `eslint --fix`
+- **Silently applies** formatting without blocking or requiring user action
+- **Reports** when formatting is applied
+
+**File types formatted**: JavaScript, TypeScript, JSX, TSX, and module files
+
 ## Configuration
 
 Hooks are configured in `.claude/settings.local.json` (gitignored).
