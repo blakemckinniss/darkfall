@@ -154,7 +154,9 @@ export function DungeonCrawler() {
   const [logEntries, setLogEntries] = useState<LogEntry[]>([])
   const [currentEvent, setCurrentEvent] = useState<GameEvent | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
-  const [modalContent, setModalContent] = useState<{ title: string; description: string } | null>(null)
+  const [modalContent, setModalContent] = useState<{ title: string; description: string } | null>(
+    null
+  )
   const logContainerRef = useRef<HTMLDivElement>(null)
 
   const [draggedItemId, setDraggedItemId] = useState<string | null>(null)
@@ -195,7 +197,15 @@ export function DungeonCrawler() {
       generatedPortraits,
     }
     saveGameState(gameState)
-  }, [baseStats, inventory, equippedItems, activeEffects, openLocations, playerPortrait, generatedPortraits])
+  }, [
+    baseStats,
+    inventory,
+    equippedItems,
+    activeEffects,
+    openLocations,
+    playerPortrait,
+    generatedPortraits,
+  ])
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -210,8 +220,13 @@ export function DungeonCrawler() {
     const generateInitialPortrait = async () => {
       // Check localStorage directly to avoid race condition
       const savedState = loadGameState()
-      if (savedState?.activePortrait || (savedState?.generatedPortraits && savedState.generatedPortraits.length > 0)) {
-        console.log("[v0] Skipping initial portrait generation - portraits already exist in localStorage")
+      if (
+        savedState?.activePortrait ||
+        (savedState?.generatedPortraits && savedState.generatedPortraits.length > 0)
+      ) {
+        console.log(
+          "[v0] Skipping initial portrait generation - portraits already exist in localStorage"
+        )
         return
       }
 
@@ -221,7 +236,9 @@ export function DungeonCrawler() {
         const response = await fetch("/api/generate-portrait", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: "Dark Wizard Witch, fantasy portrait, detailed face, mystical atmosphere" }),
+          body: JSON.stringify({
+            prompt: "Dark Wizard Witch, fantasy portrait, detailed face, mystical atmosphere",
+          }),
         })
         const result = await response.json()
 
@@ -300,7 +317,7 @@ export function DungeonCrawler() {
     entity?: string,
     entityRarity?: "common" | "uncommon" | "rare" | "epic" | "legendary",
     choices?: GameEvent["choices"],
-    entityData?: LogEntry["entityData"],
+    entityData?: LogEntry["entityData"]
   ) => {
     const newEntry: LogEntry = {
       id: Math.random().toString(36).substr(2, 9),
@@ -319,10 +336,12 @@ export function DungeonCrawler() {
       setTimeout(
         () => {
           setLogEntries((prev) =>
-            prev.map((entry) => (entry.id === newEntry.id ? { ...entry, showChoices: true } : entry)),
+            prev.map((entry) =>
+              entry.id === newEntry.id ? { ...entry, showChoices: true } : entry
+            )
           )
         },
-        text.length * 20 + 200,
+        text.length * 20 + 200
       )
     }
   }
@@ -343,14 +362,17 @@ export function DungeonCrawler() {
                 setOpenLocations((current) => current.filter((l) => l.id !== activeLocation))
                 setActiveTab("portal")
                 setActiveLocation(null)
-                addLogEntry("The portal collapses! You are forced back to the portal nexus.", "portal")
+                addLogEntry(
+                  "The portal collapses! You are forced back to the portal nexus.",
+                  "portal"
+                )
               }, 1000)
             }
 
             return { ...loc, stability: newStability }
           }
           return loc
-        }),
+        })
       )
     }
 
@@ -359,7 +381,10 @@ export function DungeonCrawler() {
     let newInventory = [...inventory]
 
     if (outcome.healthChange) {
-      newStats.health = Math.max(0, Math.min(playerStats.maxHealth, newStats.health + outcome.healthChange))
+      newStats.health = Math.max(
+        0,
+        Math.min(playerStats.maxHealth, newStats.health + outcome.healthChange)
+      )
     }
     if (outcome.goldChange) {
       newStats.gold = Math.max(0, newStats.gold + outcome.goldChange)
@@ -397,7 +422,7 @@ export function DungeonCrawler() {
         nextEvent.entity,
         nextEvent.entityRarity,
         nextEvent.choices,
-        nextEvent.entityData,
+        nextEvent.entityData
       )
     }, 500)
   }
@@ -433,7 +458,7 @@ export function DungeonCrawler() {
       firstEvent.entity,
       firstEvent.entityRarity,
       firstEvent.choices,
-      firstEvent.entityData,
+      firstEvent.entityData
     )
 
     setOpenLocations((prev) =>
@@ -450,7 +475,7 @@ export function DungeonCrawler() {
           return { ...loc, entrancesRemaining: newEntrances }
         }
         return loc
-      }),
+      })
     )
   }
 
@@ -465,11 +490,11 @@ export function DungeonCrawler() {
       firstEvent.entity,
       firstEvent.entityRarity,
       firstEvent.choices,
-      firstEvent.entityData,
+      firstEvent.entityData
     )
   }
 
-  const openModal = (title: string, description: string, item?: InventoryItem) => {
+  const openModal = (title: string, description: string, _item?: InventoryItem) => {
     setModalContent({ title, description })
     setModalOpen(true)
   }
@@ -477,7 +502,7 @@ export function DungeonCrawler() {
   const renderTextWithEntities = (
     text: string,
     entity?: string,
-    entityRarity?: "common" | "uncommon" | "rare" | "epic" | "legendary",
+    entityRarity?: "common" | "uncommon" | "rare" | "epic" | "legendary"
   ) => {
     if (!entity) return text
 
@@ -489,11 +514,11 @@ export function DungeonCrawler() {
         </span>
       ) : (
         part
-      ),
+      )
     )
   }
 
-  const handleEquip = (item: InventoryItem) => {
+  const _handleEquip = (item: InventoryItem) => {
     const slot = item.type as keyof EquippedItems
     setEquippedItems((prev) => ({
       ...prev,
@@ -501,7 +526,7 @@ export function DungeonCrawler() {
     }))
   }
 
-  const handleUnequip = (slot: keyof EquippedItems) => {
+  const _handleUnequip = (slot: keyof EquippedItems) => {
     setEquippedItems((prev) => ({
       ...prev,
       [slot]: undefined,
@@ -541,19 +566,31 @@ export function DungeonCrawler() {
           {entityData.stats?.attack !== undefined && (
             <div className="flex items-center gap-1">
               <span className="text-accent">ATK:</span>
-              <span>{entityData.stats.attack > 0 ? `+${entityData.stats.attack}` : entityData.stats.attack}</span>
+              <span>
+                {entityData.stats.attack > 0
+                  ? `+${entityData.stats.attack}`
+                  : entityData.stats.attack}
+              </span>
             </div>
           )}
           {entityData.stats?.defense !== undefined && (
             <div className="flex items-center gap-1">
               <span className="text-accent">DEF:</span>
-              <span>{entityData.stats.defense > 0 ? `+${entityData.stats.defense}` : entityData.stats.defense}</span>
+              <span>
+                {entityData.stats.defense > 0
+                  ? `+${entityData.stats.defense}`
+                  : entityData.stats.defense}
+              </span>
             </div>
           )}
           {entityData.stats?.health !== undefined && (
             <div className="flex items-center gap-1">
               <span className="text-accent">HP:</span>
-              <span>{entityData.stats.health > 0 ? `+${entityData.stats.health}` : entityData.stats.health}</span>
+              <span>
+                {entityData.stats.health > 0
+                  ? `+${entityData.stats.health}`
+                  : entityData.stats.health}
+              </span>
             </div>
           )}
           {entityData.gold !== undefined && (
@@ -576,7 +613,9 @@ export function DungeonCrawler() {
           )}
           <div className="flex items-center gap-1">
             <span className="text-accent">Rarity:</span>
-            <span className={`capitalize ${getRarityColor(entityData.rarity)}`}>{entityData.rarity}</span>
+            <span className={`capitalize ${getRarityColor(entityData.rarity)}`}>
+              {entityData.rarity}
+            </span>
           </div>
         </div>
       </div>
@@ -608,7 +647,7 @@ export function DungeonCrawler() {
       addLogEntry(
         `You consumed ${item.name}. Its effects will last for ${effect.duration} seconds!`,
         item.name,
-        item.rarity,
+        item.rarity
       )
     }
 
@@ -623,7 +662,7 @@ export function DungeonCrawler() {
     return `${minutes}:${seconds.toString().padStart(2, "0")}`
   }
 
-  const getEffectBonusForStat = (stat: "attack" | "defense") => {
+  const _getEffectBonusForStat = (stat: "attack" | "defense") => {
     return activeEffects.reduce((total, effect) => total + (effect.statChanges[stat] || 0), 0)
   }
 
@@ -676,7 +715,9 @@ export function DungeonCrawler() {
       const response = await fetch("/api/generate-portrait", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: `${portraitPrompt}, fantasy portrait, detailed face, mystical atmosphere` }),
+        body: JSON.stringify({
+          prompt: `${portraitPrompt}, fantasy portrait, detailed face, mystical atmosphere`,
+        }),
       })
       const result = await response.json()
 
@@ -739,7 +780,9 @@ export function DungeonCrawler() {
 
   return (
     <div className="h-screen w-screen bg-background text-foreground flex items-center justify-center p-6">
-      <div className="fixed top-6 left-6 text-2xl font-light tracking-wider text-accent font-inter">BLACKFELL</div>
+      <div className="fixed top-6 left-6 text-2xl font-light tracking-wider text-accent font-inter">
+        BLACKFELL
+      </div>
 
       <div className="w-full max-w-7xl h-full grid grid-cols-4 gap-6">
         <div className="col-span-1 pt-20 pb-6 px-6 flex flex-col gap-4 overflow-hidden">
@@ -760,13 +803,17 @@ export function DungeonCrawler() {
 
           <div className="flex flex-col gap-4 text-sm">
             <div>
-              <div className="text-muted-foreground text-xs mb-1.5 uppercase tracking-wider">Level</div>
+              <div className="text-muted-foreground text-xs mb-1.5 uppercase tracking-wider">
+                Level
+              </div>
               <div className="text-accent font-mono text-2xl font-light">
                 <AnimatedNumber value={baseStats.level} />
               </div>
             </div>
             <div>
-              <div className="text-muted-foreground text-xs mb-1.5 uppercase tracking-wider">Health</div>
+              <div className="text-muted-foreground text-xs mb-1.5 uppercase tracking-wider">
+                Health
+              </div>
               <div className="flex items-center gap-2">
                 <div className="flex-1 h-1.5 bg-secondary/30 rounded-full overflow-hidden">
                   <div
@@ -775,12 +822,15 @@ export function DungeonCrawler() {
                   />
                 </div>
                 <span className="font-mono text-xs text-muted-foreground">
-                  <AnimatedNumber value={baseStats.health} />/<AnimatedNumber value={playerStats.maxHealth} />
+                  <AnimatedNumber value={baseStats.health} />/
+                  <AnimatedNumber value={playerStats.maxHealth} />
                 </span>
               </div>
             </div>
             <div>
-              <div className="text-muted-foreground text-xs mb-1.5 uppercase tracking-wider">Experience</div>
+              <div className="text-muted-foreground text-xs mb-1.5 uppercase tracking-wider">
+                Experience
+              </div>
               <div className="flex items-center gap-2">
                 <div className="flex-1 h-1.5 bg-secondary/30 rounded-full overflow-hidden">
                   <div
@@ -789,7 +839,8 @@ export function DungeonCrawler() {
                   />
                 </div>
                 <span className="font-mono text-xs text-muted-foreground">
-                  <AnimatedNumber value={baseStats.experience} />/<AnimatedNumber value={baseStats.level * 100} />
+                  <AnimatedNumber value={baseStats.experience} />/
+                  <AnimatedNumber value={baseStats.level * 100} />
                 </span>
               </div>
             </div>
@@ -818,12 +869,18 @@ export function DungeonCrawler() {
                 </div>
                 {totalStats.effectAttack !== 0 && (
                   <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
-                    ({getRemainingTime(activeEffects.find((e) => e.statChanges.attack)?.endTime || 0)})
+                    (
+                    {getRemainingTime(
+                      activeEffects.find((e) => e.statChanges.attack)?.endTime || 0
+                    )}
+                    )
                   </div>
                 )}
               </div>
               <div>
-                <div className="text-muted-foreground text-xs uppercase tracking-wider">Defense</div>
+                <div className="text-muted-foreground text-xs uppercase tracking-wider">
+                  Defense
+                </div>
                 <div className="font-mono text-lg font-light flex items-baseline gap-1.5">
                   <span
                     className={
@@ -846,7 +903,11 @@ export function DungeonCrawler() {
                 </div>
                 {totalStats.effectDefense !== 0 && (
                   <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
-                    ({getRemainingTime(activeEffects.find((e) => e.statChanges.defense)?.endTime || 0)})
+                    (
+                    {getRemainingTime(
+                      activeEffects.find((e) => e.statChanges.defense)?.endTime || 0
+                    )}
+                    )
                   </div>
                 )}
               </div>
@@ -888,7 +949,7 @@ export function DungeonCrawler() {
                   >
                     {location.name.toLowerCase()}
                   </TabsTrigger>
-                ) : null,
+                ) : null
               )}
 
               <TabsTrigger
@@ -909,7 +970,9 @@ export function DungeonCrawler() {
             {activeLocation && activeLocation !== "void" && (
               <div className="mb-4 pb-4 border-b border-border/30">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground uppercase tracking-wider">Portal Stability</span>
+                  <span className="text-muted-foreground uppercase tracking-wider">
+                    Portal Stability
+                  </span>
                   <span
                     className={`font-mono ${
                       openLocations.find((loc) => loc.id === activeLocation)?.stability! > 50
@@ -939,10 +1002,14 @@ export function DungeonCrawler() {
               </div>
             )}
 
-            <TabsContent value="portal" className="flex-1 flex flex-col overflow-hidden mt-0 min-w-0 w-full">
+            <TabsContent
+              value="portal"
+              className="flex-1 flex flex-col overflow-hidden mt-0 min-w-0 w-full"
+            >
               <div className="flex-1 flex flex-col gap-6 justify-start">
                 <div className="text-sm text-muted-foreground font-light">
-                  Select a location to explore. Open maps from your inventory to discover new portals.
+                  Select a location to explore. Open maps from your inventory to discover new
+                  portals.
                 </div>
 
                 <div
@@ -952,7 +1019,9 @@ export function DungeonCrawler() {
                   <div className="flex items-start justify-between">
                     <div>
                       <div className="text-accent font-light mb-1">The Void</div>
-                      <div className="text-xs text-muted-foreground">The most basic realm. Always accessible.</div>
+                      <div className="text-xs text-muted-foreground">
+                        The most basic realm. Always accessible.
+                      </div>
                     </div>
                     <div className="text-xs text-accent">∞ entrances</div>
                   </div>
@@ -966,8 +1035,12 @@ export function DungeonCrawler() {
                   >
                     <div className="flex items-start justify-between">
                       <div>
-                        <div className={`font-light mb-1 ${getRarityColor(location.rarity)}`}>{location.name}</div>
-                        <div className="text-xs text-muted-foreground capitalize">{location.rarity} location</div>
+                        <div className={`font-light mb-1 ${getRarityColor(location.rarity)}`}>
+                          {location.name}
+                        </div>
+                        <div className="text-xs text-muted-foreground capitalize">
+                          {location.rarity} location
+                        </div>
                       </div>
                       <div className="text-xs text-accent">
                         {location.entrancesRemaining}/{location.maxEntrances} entrances
@@ -984,12 +1057,20 @@ export function DungeonCrawler() {
               </div>
             </TabsContent>
 
-            <TabsContent value="void" className="flex-1 flex flex-col overflow-hidden mt-0 min-w-0 w-full">
+            <TabsContent
+              value="void"
+              className="flex-1 flex flex-col overflow-hidden mt-0 min-w-0 w-full"
+            >
               <div className="flex-1 flex flex-col gap-4 justify-start">
                 {logEntries.map((entry, index) => {
-                  const opacity = index === logEntries.length - 1 ? 1 : 0.3 + (index / logEntries.length) * 0.7
+                  const opacity =
+                    index === logEntries.length - 1 ? 1 : 0.3 + (index / logEntries.length) * 0.7
                   return (
-                    <div key={entry.id} className="transition-opacity duration-500" style={{ opacity }}>
+                    <div
+                      key={entry.id}
+                      className="transition-opacity duration-500"
+                      style={{ opacity }}
+                    >
                       <div className="typewriter-line text-sm leading-relaxed font-light">
                         {renderTextWithEntities(entry.text, entry.entity, entry.entityRarity)}
                       </div>
@@ -1024,9 +1105,16 @@ export function DungeonCrawler() {
                 <div className="flex-1 flex flex-col gap-4 justify-start">
                   {activeLocation === location.id &&
                     logEntries.map((entry, index) => {
-                      const opacity = index === logEntries.length - 1 ? 1 : 0.3 + (index / logEntries.length) * 0.7
+                      const opacity =
+                        index === logEntries.length - 1
+                          ? 1
+                          : 0.3 + (index / logEntries.length) * 0.7
                       return (
-                        <div key={entry.id} className="transition-opacity duration-500" style={{ opacity }}>
+                        <div
+                          key={entry.id}
+                          className="transition-opacity duration-500"
+                          style={{ opacity }}
+                        >
                           <div className="typewriter-line text-sm leading-relaxed font-light">
                             {renderTextWithEntities(entry.text, entry.entity, entry.entityRarity)}
                           </div>
@@ -1058,12 +1146,16 @@ export function DungeonCrawler() {
               className="flex-1 flex flex-col gap-6 overflow-y-auto overflow-x-hidden mt-0 min-w-0 w-full max-w-full hide-scrollbar"
             >
               <div className="flex flex-col gap-4 min-w-0 w-full">
-                <div className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Equipped Gear</div>
+                <div className="text-xs text-muted-foreground uppercase tracking-wider mb-2">
+                  Equipped Gear
+                </div>
 
                 <div className="grid grid-cols-3 gap-2">
                   {/* Weapon Slot */}
                   <div className="flex flex-col gap-1.5">
-                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider text-center">Weapon</div>
+                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider text-center">
+                      Weapon
+                    </div>
                     {equippedItems.weapon ? (
                       <div
                         className="p-1.5 bg-accent/10 rounded border border-accent/20 hover:bg-accent/15 transition-all cursor-pointer"
@@ -1079,7 +1171,7 @@ export function DungeonCrawler() {
                                       .join("\n")}`
                                   : ""
                               }\n\nA valuable item in your possession.`,
-                              item,
+                              item
                             )
                           }
                         }}
@@ -1099,7 +1191,9 @@ export function DungeonCrawler() {
 
                   {/* Armor Slot */}
                   <div className="flex flex-col gap-1.5">
-                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider text-center">Armor</div>
+                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider text-center">
+                      Armor
+                    </div>
                     {equippedItems.armor ? (
                       <div
                         className="p-1.5 bg-accent/10 rounded border border-accent/20 hover:bg-accent/15 transition-all cursor-pointer"
@@ -1115,12 +1209,14 @@ export function DungeonCrawler() {
                                       .join("\n")}`
                                   : ""
                               }\n\nA valuable item in your possession.`,
-                              item,
+                              item
                             )
                           }
                         }}
                       >
-                        <div className={`text-sm font-light text-center ${getRarityColor(equippedItems.armor.rarity)}`}>
+                        <div
+                          className={`text-sm font-light text-center ${getRarityColor(equippedItems.armor.rarity)}`}
+                        >
                           {equippedItems.armor.name}
                         </div>
                       </div>
@@ -1151,7 +1247,7 @@ export function DungeonCrawler() {
                                       .join("\n")}`
                                   : ""
                               }\n\nA valuable item in your possession.`,
-                              item,
+                              item
                             )
                           }
                         }}
@@ -1176,7 +1272,10 @@ export function DungeonCrawler() {
               value="developer"
               className="flex-1 flex flex-col gap-6 overflow-y-auto overflow-x-hidden mt-0 min-w-0 w-full max-w-full hide-scrollbar"
             >
-              {console.log("[v0] Developer tab rendered, generatedPortraits count:", generatedPortraits.length)}
+              {console.log(
+                "[v0] Developer tab rendered, generatedPortraits count:",
+                generatedPortraits.length
+              )}
               <div className="flex flex-col gap-4 min-w-0 w-full">
                 <div className="pb-6 border-b border-border/30">
                   <div className="text-xs text-muted-foreground uppercase tracking-wider mb-3">
@@ -1185,7 +1284,9 @@ export function DungeonCrawler() {
 
                   <div className="flex flex-col gap-3">
                     <div>
-                      <label className="text-xs text-muted-foreground mb-2 block">Item Description</label>
+                      <label className="text-xs text-muted-foreground mb-2 block">
+                        Item Description
+                      </label>
                       <Input
                         value={itemPrompt}
                         onChange={(e) => setItemPrompt(e.target.value)}
@@ -1208,16 +1309,21 @@ export function DungeonCrawler() {
                     </Button>
 
                     <div className="text-[10px] text-muted-foreground">
-                      Powered by Groq AI. Describe any item and it will be generated with appropriate stats and rarity.
+                      Powered by Groq AI. Describe any item and it will be generated with
+                      appropriate stats and rarity.
                     </div>
                   </div>
                 </div>
 
-                <div className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Portrait Generator</div>
+                <div className="text-xs text-muted-foreground uppercase tracking-wider mb-2">
+                  Portrait Generator
+                </div>
 
                 <div className="flex flex-col gap-3">
                   <div>
-                    <label className="text-xs text-muted-foreground mb-2 block">Character Description</label>
+                    <label className="text-xs text-muted-foreground mb-2 block">
+                      Character Description
+                    </label>
                     <Input
                       value={portraitPrompt}
                       onChange={(e) => setPortraitPrompt(e.target.value)}
@@ -1237,14 +1343,22 @@ export function DungeonCrawler() {
 
                 {generatedPortraits.length > 0 && (
                   <div className="mt-6">
-                    <div className="text-xs text-muted-foreground uppercase tracking-wider mb-3">Portrait Gallery</div>
-                    {console.log("[v0] Rendering portrait gallery with", generatedPortraits.length, "portraits")}
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider mb-3">
+                      Portrait Gallery
+                    </div>
+                    {console.log(
+                      "[v0] Rendering portrait gallery with",
+                      generatedPortraits.length,
+                      "portraits"
+                    )}
                     <div className="grid grid-cols-2 gap-3">
                       {generatedPortraits.map((portrait) => (
                         <div
                           key={portrait.id}
                           className={`rounded overflow-hidden border-2 cursor-pointer transition-all hover:border-accent/50 ${
-                            playerPortrait === portrait.imageUrl ? "border-accent" : "border-border/30"
+                            playerPortrait === portrait.imageUrl
+                              ? "border-accent"
+                              : "border-border/30"
                           }`}
                           onClick={() => handleSelectPortrait(portrait.id)}
                         >
@@ -1254,7 +1368,9 @@ export function DungeonCrawler() {
                             className="w-full h-auto object-cover aspect-[2/3]"
                           />
                           <div className="p-2 bg-secondary/30">
-                            <div className="text-[10px] text-muted-foreground truncate">{portrait.prompt}</div>
+                            <div className="text-[10px] text-muted-foreground truncate">
+                              {portrait.prompt}
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -1273,7 +1389,9 @@ export function DungeonCrawler() {
 
         <div className="col-span-1 pt-20 pb-6 px-6 flex flex-col gap-4 overflow-hidden">
           <div className="pb-4 border-b border-border/30">
-            <div className="text-muted-foreground text-xs mb-1.5 uppercase tracking-wider">Gold</div>
+            <div className="text-muted-foreground text-xs mb-1.5 uppercase tracking-wider">
+              Gold
+            </div>
             <div className="font-mono text-amber-500 text-2xl font-light">
               <AnimatedNumber value={baseStats.gold} />
             </div>
@@ -1313,16 +1431,20 @@ export function DungeonCrawler() {
                     openModal(
                       item.name,
                       `Type: ${item.type}\nValue: ${item.value}\n\nA valuable item in your possession.`,
-                      item,
+                      item
                     )
                   }
                 }}
               >
-                <div className={`text-sm font-light ${getRarityColor(item.rarity)}`}>{item.name}</div>
+                <div className={`text-sm font-light ${getRarityColor(item.rarity)}`}>
+                  {item.name}
+                </div>
               </div>
             ))}
             {inventory.length === 0 && (
-              <div className="text-sm text-muted-foreground text-center py-8 font-light">Your inventory is empty</div>
+              <div className="text-sm text-muted-foreground text-center py-8 font-light">
+                Your inventory is empty
+              </div>
             )}
           </div>
         </div>
@@ -1340,19 +1462,23 @@ export function DungeonCrawler() {
             <Button
               className="mt-4 bg-accent hover:bg-accent/80 text-background"
               onClick={() => {
-                const mapItem = inventory.find((item) => item.name === modalContent?.title && item.type === "map")
+                const mapItem = inventory.find(
+                  (item) => item.name === modalContent?.title && item.type === "map"
+                )
                 if (mapItem) handleOpenMap(mapItem)
               }}
             >
               Open Map
             </Button>
           )}
-          {inventory.find((item) => item.name === modalContent?.title && item.type === "consumable") && (
+          {inventory.find(
+            (item) => item.name === modalContent?.title && item.type === "consumable"
+          ) && (
             <Button
               className="mt-4 bg-accent hover:bg-accent/80 text-background"
               onClick={() => {
                 const consumableItem = inventory.find(
-                  (item) => item.name === modalContent?.title && item.type === "consumable",
+                  (item) => item.name === modalContent?.title && item.type === "consumable"
                 )
                 if (consumableItem) handleUseConsumable(consumableItem)
               }}

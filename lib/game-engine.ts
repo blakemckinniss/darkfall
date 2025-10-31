@@ -99,11 +99,24 @@ const enemies = [
   { name: "Orc", health: 40, attack: 12, gold: 25, exp: 30, rarity: "uncommon" as const },
   { name: "Dark Knight", health: 60, attack: 15, gold: 50, exp: 50, rarity: "rare" as const },
   { name: "Shadow Demon", health: 80, attack: 20, gold: 75, exp: 70, rarity: "epic" as const },
-  { name: "Ancient Dragon", health: 120, attack: 30, gold: 150, exp: 100, rarity: "legendary" as const },
+  {
+    name: "Ancient Dragon",
+    health: 120,
+    attack: 30,
+    gold: 150,
+    exp: 100,
+    rarity: "legendary" as const,
+  },
 ]
 
 const treasures = [
-  { name: "Health Potion", type: "potion" as const, value: 20, rarity: "common" as const, icon: "ra-potion" },
+  {
+    name: "Health Potion",
+    type: "potion" as const,
+    value: 20,
+    rarity: "common" as const,
+    icon: "ra-potion",
+  },
   {
     name: "Steel Sword",
     type: "weapon" as const,
@@ -120,7 +133,13 @@ const treasures = [
     rarity: "uncommon" as const,
     icon: "ra-shield",
   },
-  { name: "Gold Coins", type: "treasure" as const, value: 30, rarity: "common" as const, icon: "ra-gold-bar" },
+  {
+    name: "Gold Coins",
+    type: "treasure" as const,
+    value: 30,
+    rarity: "common" as const,
+    icon: "ra-gold-bar",
+  },
   {
     name: "Ancient Amulet",
     type: "accessory" as const,
@@ -304,10 +323,10 @@ const locations = [
   "a forgotten crypt",
 ]
 
-let eventCounter = 0
+let _eventCounter = 0
 
-export function generateEvent(playerStats: PlayerStats, inventory: InventoryItem[]): GameEvent {
-  eventCounter++
+export function generateEvent(playerStats: PlayerStats, _inventory: InventoryItem[]): GameEvent {
+  _eventCounter++
   const rand = Math.random()
 
   // Combat encounter
