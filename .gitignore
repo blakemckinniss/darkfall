@@ -31,3 +31,9 @@ next-env.d.ts
 
 # claude local settings
 .claude/settings.local.json
+
+# test coverage
+coverage/
+
+# analysis reports
+bundle-analysis-report.json
