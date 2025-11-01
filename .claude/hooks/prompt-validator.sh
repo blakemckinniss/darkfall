@@ -49,6 +49,12 @@ CONTEXT+="3. **Always Provide Next Steps**"$'\n'
 CONTEXT+="   - NEVER end a response without suggesting next steps"$'\n'
 CONTEXT+="   - Include considerations, potential improvements, or follow-up tasks"$'\n'
 CONTEXT+="   - Format: \"## Next Steps & Considerations:\" followed by numbered list"$'\n\n'
+CONTEXT+="4. **Optimize Task Execution (PERFORMANCE)**"$'\n'
+CONTEXT+="   - Use parallel tool calls when tasks are independent (single message, multiple tools)"$'\n'
+CONTEXT+="   - Batch similar operations together (read multiple files, run tests + lint in sequence)"$'\n'
+CONTEXT+="   - Create helper bash scripts for repetitive multi-step operations"$'\n'
+CONTEXT+="   - Use Task tool with parallel agents when appropriate"$'\n'
+CONTEXT+="   - Example: \"Reading 5 files in parallel\" or \"Creating script for test+build workflow\""$'\n\n'
 CONTEXT+="**Confidence Level Guidelines:**"$'\n'
 CONTEXT+="- 90-100%: High certainty, tested and validated"$'\n'
 CONTEXT+="- 80-89%: Good confidence, standard approach"$'\n'
@@ -74,7 +80,7 @@ fi
 if [ -f "$CLAUDE_PROJECT_DIR/package.json" ] && command -v pnpm &> /dev/null; then
   # Cache management (skip checks if run within last 30 seconds and no file changes)
   CACHE_DIR="/tmp/claude-hook-cache"
-  CACHE_FILE="$CACHE_DIR/last-check-$SESSION_ID"
+  CACHE_FILE="$CACHE_DIR/last-check-${SESSION_ID:-$$}"
   CACHE_MAX_AGE=30  # seconds
   SKIP_CHECKS=false
 

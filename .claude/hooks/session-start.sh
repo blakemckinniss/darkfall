@@ -49,6 +49,7 @@ CONTEXT+="- 🚫 **No demos or examples** - build production-ready code only"$'\
 CONTEXT+="- 🏗️  **Prevent technical debt** - write clean, maintainable code from the start"$'\n'
 CONTEXT+="- 📝 **Never version files** - overwrite existing files; git handles versioning"$'\n'
 CONTEXT+="- 💾 **Commit after major changes** - use git to track significant work"$'\n'
+CONTEXT+="- ⚡ **Optimize for speed** - batch/parallelize tasks and create helper scripts when beneficial"$'\n'
 
 # Output context for Claude
 if [ -n "$CONTEXT" ]; then

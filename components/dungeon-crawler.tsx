@@ -18,6 +18,7 @@ import {
 } from "@/lib/game-engine"
 import { saveGameState, loadGameState, type GeneratedPortrait } from "@/lib/game-state"
 import type { Rarity, Stats } from "@/lib/types"
+import { ENTITIES, RARITY_COLORS, type EntityType } from "@/lib/entities"
 
 interface LogEntry {
   id: string
@@ -168,6 +169,10 @@ export function DungeonCrawler() {
 
   const [itemPrompt, setItemPrompt] = useState("")
   const [isGeneratingItem, setIsGeneratingItem] = useState(false)
+
+  // Entity registry state
+  const [entityStats, setEntityStats] = useState(() => ENTITIES.stats())
+  const [expandedEntityType, setExpandedEntityType] = useState<string | null>(null)
 
   // Performance optimization: ref for debounced save timeout
   const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
@@ -452,16 +457,54 @@ export function DungeonCrawler() {
 
     addLogEntry(outcome.message, outcome.entity, outcome.entityRarity)
 
-    setTimeout(() => {
-      const nextEvent = generateEvent(playerStats, newInventory)
-      setCurrentEvent(nextEvent)
-      addLogEntry(
-        nextEvent.description,
-        nextEvent.entity,
-        nextEvent.entityRarity,
-        nextEvent.choices,
-        nextEvent.entityData
-      )
+    setTimeout(async () => {
+      if (activeLocation === "void") {
+        // Generate AI narrative for The Void
+        try {
+          const response = await fetch("/api/generate-narrative", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ playerStats: newStats }),
+          })
+
+          if (!response.ok) {
+            throw new Error("Failed to generate narrative")
+          }
+
+          const { event } = await response.json()
+          setCurrentEvent(event)
+          addLogEntry(
+            event.description,
+            event.entity,
+            event.entityRarity,
+            event.choices,
+            event.entityData
+          )
+        } catch (error) {
+          console.error("Error generating void narrative:", error)
+          // Fallback to static event
+          const fallbackEvent = generateEvent(newStats, newInventory)
+          setCurrentEvent(fallbackEvent)
+          addLogEntry(
+            fallbackEvent.description,
+            fallbackEvent.entity,
+            fallbackEvent.entityRarity,
+            fallbackEvent.choices,
+            fallbackEvent.entityData
+          )
+        }
+      } else {
+        // Use static generation for other locations
+        const nextEvent = generateEvent(newStats, newInventory)
+        setCurrentEvent(nextEvent)
+        addLogEntry(
+          nextEvent.description,
+          nextEvent.entity,
+          nextEvent.entityRarity,
+          nextEvent.choices,
+          nextEvent.entityData
+        )
+      }
     }, 500)
   }
 
@@ -517,19 +560,43 @@ export function DungeonCrawler() {
     )
   }
 
-  const handleEnterVoid = () => {
+  const handleEnterVoid = async () => {
     setActiveLocation("void")
     setActiveTab("void")
 
-    const firstEvent = generateEvent(playerStats, inventory)
-    setCurrentEvent(firstEvent)
-    addLogEntry(
-      firstEvent.description,
-      firstEvent.entity,
-      firstEvent.entityRarity,
-      firstEvent.choices,
-      firstEvent.entityData
-    )
+    try {
+      const response = await fetch("/api/generate-narrative", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerStats }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to generate narrative")
+      }
+
+      const { event } = await response.json()
+      setCurrentEvent(event)
+      addLogEntry(
+        event.description,
+        event.entity,
+        event.entityRarity,
+        event.choices,
+        event.entityData
+      )
+    } catch (error) {
+      console.error("Error generating void narrative:", error)
+      // Fallback to static event
+      const fallbackEvent = generateEvent(playerStats, inventory)
+      setCurrentEvent(fallbackEvent)
+      addLogEntry(
+        fallbackEvent.description,
+        fallbackEvent.entity,
+        fallbackEvent.entityRarity,
+        fallbackEvent.choices,
+        fallbackEvent.entityData
+      )
+    }
   }
 
   const openModal = (title: string, description: string, _item?: InventoryItem) => {
@@ -553,29 +620,69 @@ export function DungeonCrawler() {
     )
   }
 
-  const getRarityColor = (rarity?: string) => {
-    switch (rarity) {
-      case "common":
-        return "text-white font-semibold"
-      case "uncommon":
-        return "text-green-400 font-semibold"
-      case "rare":
-        return "text-blue-400 font-semibold"
-      case "epic":
-        return "text-purple-400 font-semibold"
-      case "legendary":
-        return "text-orange-400 font-semibold"
-      default:
-        return "text-foreground"
+  const getRarityColor = (rarity?: string, withGlow = false) => {
+    if (!rarity) return "text-foreground"
+    const colorClass = RARITY_COLORS[rarity as Rarity]
+    const baseClass = colorClass ? `${colorClass} font-semibold` : "text-foreground font-semibold"
+
+    // Add glow effect for legendary and epic items
+    if (withGlow) {
+      if (rarity === "legendary") {
+        // Legendary: Strong glow with pulse
+        return `${baseClass} drop-shadow-[0_0_12px_currentColor] animate-pulse`
+      } else if (rarity === "epic") {
+        // Epic: Medium glow with slower pulse
+        return `${baseClass} drop-shadow-[0_0_8px_currentColor] animate-pulse [animation-duration:3s]`
+      } else if (rarity === "rare") {
+        // Rare: Subtle glow without pulse
+        return `${baseClass} drop-shadow-[0_0_4px_currentColor]`
+      }
     }
+
+    return baseClass
+  }
+
+  const getEntityGlow = (entity?: { tags?: string[]; rarity?: string }) => {
+    if (!entity) return ""
+
+    // Boss entities get extra strong red glow
+    if (entity.tags?.includes("boss")) {
+      return "drop-shadow-[0_0_16px_rgba(239,68,68,0.8)] animate-pulse"
+    }
+
+    // Healing entities get cyan glow
+    if (entity.tags?.includes("healing")) {
+      return "drop-shadow-[0_0_10px_rgba(34,211,238,0.6)]"
+    }
+
+    // Elemental entities get thematic glow based on element
+    if (entity.tags?.includes("fire")) {
+      return "drop-shadow-[0_0_10px_rgba(249,115,22,0.7)]"
+    }
+    if (entity.tags?.includes("ice")) {
+      return "drop-shadow-[0_0_10px_rgba(103,232,249,0.6)]"
+    }
+    if (entity.tags?.includes("poison")) {
+      return "drop-shadow-[0_0_10px_rgba(34,197,94,0.6)]"
+    }
+    if (entity.tags?.includes("void")) {
+      return "drop-shadow-[0_0_10px_rgba(168,85,247,0.7)]"
+    }
+
+    return ""
   }
 
   const renderEntityCard = (entityData: LogEntry["entityData"]) => {
     if (!entityData) return null
 
+    // Get entity-specific glow based on tags (for ENTITIES registry lookups)
+    const entityGlow = getEntityGlow(entityData as unknown as { tags?: string[]; rarity?: string })
+
     return (
       <div className="my-3 p-4 bg-secondary/30 rounded border border-accent/30 animate-in fade-in duration-300">
-        <div className={`text-sm mb-2 ${getRarityColor(entityData.rarity)}`}>{entityData.name}</div>
+        <div className={`text-sm mb-2 ${getRarityColor(entityData.rarity, true)} ${entityGlow}`}>
+          {entityData.name}
+        </div>
         <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
           {entityData.type && (
             <div className="flex items-center gap-1">
@@ -793,6 +900,96 @@ export function DungeonCrawler() {
       addLogEntry("Failed to generate item. Please try again.", "error")
     }
     setIsGeneratingItem(false)
+  }
+
+  // Entity management handlers
+  const refreshEntityStats = () => {
+    setEntityStats(ENTITIES.stats())
+  }
+
+  const handlePruneExpired = () => {
+    const prunedCount = ENTITIES.pruneExpired()
+    refreshEntityStats()
+    addLogEntry(
+      `Pruned ${prunedCount} expired ${prunedCount === 1 ? "entity" : "entities"} from registry`
+    )
+  }
+
+  const handleClearAI = () => {
+    ENTITIES.clearAI()
+    refreshEntityStats()
+    addLogEntry("Cleared all AI-generated entities from registry")
+  }
+
+  const handleClearSession = () => {
+    ENTITIES.clearSession()
+    refreshEntityStats()
+    addLogEntry("Cleared all session-only entities from registry")
+  }
+
+  const handleClearAll = () => {
+    ENTITIES.clear()
+    refreshEntityStats()
+    addLogEntry("Cleared all dynamic entities from registry")
+  }
+
+  // Test variant creation by adding duplicate entities
+  const handleTestVariants = () => {
+    // Test 1: Create AI entity with canonical name (should become "Goblin (AI)")
+    const goblinVariant = ENTITIES.addAI(
+      {
+        entityType: "enemy",
+        name: "Goblin", // Matches canonical entity
+        health: 25,
+        attack: 6,
+        gold: 12,
+        exp: 18,
+        rarity: "common",
+        icon: "ra-monster-skull",
+      },
+      {
+        ttl: 60000, // 1 minute for testing
+        sessionOnly: false,
+        tags: ["test", "variant"],
+      }
+    )
+
+    if (goblinVariant.success) {
+      addLogEntry(
+        `Created AI variant: ${goblinVariant.data.name} (ID: ${goblinVariant.data.id})`,
+        goblinVariant.data.name,
+        goblinVariant.data.rarity
+      )
+    }
+
+    // Test 2: Create another with same name (should become "Goblin (AI) (AI)")
+    const goblinVariant2 = ENTITIES.addAI(
+      {
+        entityType: "enemy",
+        name: "Goblin (AI)", // Matches first variant
+        health: 30,
+        attack: 7,
+        gold: 15,
+        exp: 20,
+        rarity: "uncommon",
+        icon: "ra-monster-skull",
+      },
+      {
+        ttl: 60000,
+        sessionOnly: false,
+        tags: ["test", "variant"],
+      }
+    )
+
+    if (goblinVariant2.success) {
+      addLogEntry(
+        `Created nested variant: ${goblinVariant2.data.name} (ID: ${goblinVariant2.data.id})`,
+        goblinVariant2.data.name,
+        goblinVariant2.data.rarity
+      )
+    }
+
+    refreshEntityStats()
   }
 
   return (
@@ -1196,7 +1393,7 @@ export function DungeonCrawler() {
                         }}
                       >
                         <div
-                          className={`text-sm font-light text-center ${getRarityColor(equippedItems.weapon.rarity)}`}
+                          className={`text-sm font-light text-center ${getRarityColor(equippedItems.weapon.rarity, true)}`}
                         >
                           {equippedItems.weapon.name}
                         </div>
@@ -1234,7 +1431,7 @@ export function DungeonCrawler() {
                         }}
                       >
                         <div
-                          className={`text-sm font-light text-center ${getRarityColor(equippedItems.armor.rarity)}`}
+                          className={`text-sm font-light text-center ${getRarityColor(equippedItems.armor.rarity, true)}`}
                         >
                           {equippedItems.armor.name}
                         </div>
@@ -1272,7 +1469,7 @@ export function DungeonCrawler() {
                         }}
                       >
                         <div
-                          className={`text-sm font-light text-center ${getRarityColor(equippedItems.accessory.rarity)}`}
+                          className={`text-sm font-light text-center ${getRarityColor(equippedItems.accessory.rarity, true)}`}
                         >
                           {equippedItems.accessory.name}
                         </div>
@@ -1392,6 +1589,155 @@ export function DungeonCrawler() {
                     No portraits generated yet. Generate your first portrait above!
                   </div>
                 )}
+
+                {/* Entity Registry Management */}
+                <div className="mt-8 pt-6 border-t border-border/30">
+                  <div className="text-xs text-muted-foreground uppercase tracking-wider mb-3">
+                    Entity Registry Management
+                  </div>
+
+                  {/* Registry Statistics */}
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div className="bg-secondary/20 rounded p-3 border border-border/30">
+                      <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
+                        Total Entities
+                      </div>
+                      <div className="text-2xl font-mono text-accent">{entityStats.total}</div>
+                    </div>
+                    <div className="bg-secondary/20 rounded p-3 border border-border/30">
+                      <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
+                        Canonical
+                      </div>
+                      <div className="text-2xl font-mono text-green-500">
+                        {entityStats.canonical}
+                      </div>
+                    </div>
+                    <div className="bg-secondary/20 rounded p-3 border border-border/30">
+                      <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
+                        AI Generated
+                      </div>
+                      <div className="text-2xl font-mono text-purple-500">
+                        {entityStats.bySource.ai || 0}
+                      </div>
+                    </div>
+                    <div className="bg-secondary/20 rounded p-3 border border-border/30">
+                      <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
+                        Overrides
+                      </div>
+                      <div className="text-2xl font-mono text-amber-500">
+                        {entityStats.overrides}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Entity Type Breakdown */}
+                  <div className="mb-4">
+                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">
+                      By Type
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {Object.entries(entityStats.byType).map(([type, count]) => (
+                        <div
+                          key={type}
+                          className="bg-secondary/10 rounded px-3 py-2 border border-border/20 flex justify-between items-center"
+                        >
+                          <span className="text-xs capitalize">{type}</span>
+                          <span className="text-xs font-mono text-muted-foreground">{count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Management Actions */}
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      onClick={refreshEntityStats}
+                      variant="outline"
+                      className="bg-secondary/20 hover:bg-secondary/30 border-border/30 text-foreground text-xs"
+                    >
+                      Refresh Stats
+                    </Button>
+                    <Button
+                      onClick={handleTestVariants}
+                      variant="outline"
+                      className="bg-accent/10 hover:bg-accent/20 border-accent/30 text-accent text-xs"
+                    >
+                      Test AI Variants (Demo)
+                    </Button>
+                    <Button
+                      onClick={handlePruneExpired}
+                      variant="outline"
+                      className="bg-secondary/20 hover:bg-secondary/30 border-border/30 text-foreground text-xs"
+                    >
+                      Prune Expired Entities
+                    </Button>
+                    <Button
+                      onClick={handleClearAI}
+                      variant="outline"
+                      className="bg-purple-500/10 hover:bg-purple-500/20 border-purple-500/30 text-purple-400 text-xs"
+                    >
+                      Clear AI Entities
+                    </Button>
+                    <Button
+                      onClick={handleClearSession}
+                      variant="outline"
+                      className="bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30 text-blue-400 text-xs"
+                    >
+                      Clear Session Entities
+                    </Button>
+                    <Button
+                      onClick={handleClearAll}
+                      variant="outline"
+                      className="bg-red-500/10 hover:bg-red-500/20 border-red-500/30 text-red-400 text-xs"
+                    >
+                      Clear All Dynamic
+                    </Button>
+                  </div>
+
+                  {/* Entity Browser */}
+                  <div className="mt-4">
+                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">
+                      Entity Browser
+                    </div>
+                    <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
+                      {Object.entries(entityStats.byType).map(([type, count]) => (
+                        <div key={type} className="border border-border/30 rounded overflow-hidden">
+                          <button
+                            onClick={() =>
+                              setExpandedEntityType(expandedEntityType === type ? null : type)
+                            }
+                            className="w-full px-3 py-2 bg-secondary/20 hover:bg-secondary/30 flex justify-between items-center text-xs"
+                          >
+                            <span className="capitalize">{type}</span>
+                            <span className="text-muted-foreground">
+                              {expandedEntityType === type ? "▼" : "▶"} {count}
+                            </span>
+                          </button>
+                          {expandedEntityType === type && (
+                            <div className="p-2 bg-secondary/10 max-h-48 overflow-y-auto">
+                              {ENTITIES.byType(type as EntityType).map((entity) => (
+                                <div
+                                  key={entity.id}
+                                  className="text-[10px] py-1 px-2 hover:bg-secondary/20 rounded flex justify-between items-center"
+                                >
+                                  <span className="truncate flex-1">{entity.name}</span>
+                                  <div className="flex gap-2 items-center">
+                                    <span className={`capitalize ${getRarityColor(entity.rarity)}`}>
+                                      {entity.rarity}
+                                    </span>
+                                    {entity.source === "ai" && (
+                                      <span className="text-purple-400 text-[8px]">AI</span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
             </TabsContent>
           </Tabs>

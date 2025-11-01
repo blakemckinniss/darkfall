@@ -1,4 +1,5 @@
 import type { Rarity, ItemType, EffectType, Stats } from "./types"
+import { ENTITIES } from "./entities"
 
 export interface PlayerStats {
   health: number
@@ -77,227 +78,7 @@ export interface GameEvent {
   }[]
 }
 
-const enemies = [
-  { name: "Goblin", health: 20, attack: 5, gold: 10, exp: 15, rarity: "common" as const },
-  { name: "Skeleton", health: 30, attack: 8, gold: 15, exp: 20, rarity: "common" as const },
-  { name: "Orc", health: 40, attack: 12, gold: 25, exp: 30, rarity: "uncommon" as const },
-  { name: "Dark Knight", health: 60, attack: 15, gold: 50, exp: 50, rarity: "rare" as const },
-  { name: "Shadow Demon", health: 80, attack: 20, gold: 75, exp: 70, rarity: "epic" as const },
-  {
-    name: "Ancient Dragon",
-    health: 120,
-    attack: 30,
-    gold: 150,
-    exp: 100,
-    rarity: "legendary" as const,
-  },
-]
-
-const treasures = [
-  {
-    name: "Health Potion",
-    type: "potion" as const,
-    value: 20,
-    rarity: "common" as const,
-    icon: "ra-potion",
-  },
-  {
-    name: "Steel Sword",
-    type: "weapon" as const,
-    value: 15,
-    stats: { attack: 8 },
-    rarity: "uncommon" as const,
-    icon: "ra-sword",
-  },
-  {
-    name: "Iron Shield",
-    type: "armor" as const,
-    value: 10,
-    stats: { defense: 6 },
-    rarity: "uncommon" as const,
-    icon: "ra-shield",
-  },
-  {
-    name: "Gold Coins",
-    type: "treasure" as const,
-    value: 30,
-    rarity: "common" as const,
-    icon: "ra-gold-bar",
-  },
-  {
-    name: "Ancient Amulet",
-    type: "accessory" as const,
-    value: 50,
-    stats: { attack: 3, defense: 3 },
-    rarity: "rare" as const,
-    icon: "ra-gem-pendant",
-  },
-  {
-    name: "Dragon Blade",
-    type: "weapon" as const,
-    value: 40,
-    stats: { attack: 15 },
-    rarity: "epic" as const,
-    icon: "ra-fire-sword",
-  },
-  {
-    name: "Plate Armor",
-    type: "armor" as const,
-    value: 35,
-    stats: { defense: 12 },
-    rarity: "rare" as const,
-    icon: "ra-shield",
-  },
-  {
-    name: "Ring of Vitality",
-    type: "accessory" as const,
-    value: 25,
-    stats: { health: 20 },
-    rarity: "uncommon" as const,
-    icon: "ra-gem-pendant",
-  },
-  {
-    name: "Legendary Excalibur",
-    type: "weapon" as const,
-    value: 100,
-    stats: { attack: 25 },
-    rarity: "legendary" as const,
-    icon: "ra-sword",
-  },
-  {
-    name: "Mythril Armor",
-    type: "armor" as const,
-    value: 80,
-    stats: { defense: 20 },
-    rarity: "epic" as const,
-    icon: "ra-shield",
-  },
-]
-
-const consumables = [
-  {
-    name: "Strength Elixir",
-    type: "consumable" as const,
-    value: 30,
-    rarity: "uncommon" as const,
-    icon: "ra-flask",
-    consumableEffect: {
-      type: "temporary" as const,
-      duration: 120,
-      statChanges: { attack: 50 },
-    },
-  },
-  {
-    name: "Iron Skin Potion",
-    type: "consumable" as const,
-    value: 25,
-    rarity: "uncommon" as const,
-    icon: "ra-bottle-vapors",
-    consumableEffect: {
-      type: "temporary" as const,
-      duration: 90,
-      statChanges: { defense: 30 },
-    },
-  },
-  {
-    name: "Berserker Brew",
-    type: "consumable" as const,
-    value: 50,
-    rarity: "rare" as const,
-    icon: "ra-bubbling-potion",
-    consumableEffect: {
-      type: "temporary" as const,
-      duration: 60,
-      statChanges: { attack: 100, defense: -20 },
-    },
-  },
-  {
-    name: "Titan's Blessing",
-    type: "consumable" as const,
-    value: 80,
-    rarity: "epic" as const,
-    icon: "ra-vial",
-    consumableEffect: {
-      type: "temporary" as const,
-      duration: 180,
-      statChanges: { attack: 75, defense: 50 },
-    },
-  },
-  {
-    name: "Permanent Strength Tome",
-    type: "consumable" as const,
-    value: 100,
-    rarity: "legendary" as const,
-    icon: "ra-book",
-    consumableEffect: {
-      type: "permanent" as const,
-      statChanges: { attack: 10 },
-    },
-  },
-  {
-    name: "Permanent Defense Scroll",
-    type: "consumable" as const,
-    value: 100,
-    rarity: "legendary" as const,
-    icon: "ra-scroll-unfurled",
-    consumableEffect: {
-      type: "permanent" as const,
-      statChanges: { defense: 8 },
-    },
-  },
-]
-
-const mapItems = [
-  {
-    name: "Crumbling Map",
-    locationName: "Forgotten Catacombs",
-    entrances: 2,
-    rarity: "common" as const,
-    value: 15,
-    icon: "ra-scroll-unfurled",
-  },
-  {
-    name: "Weathered Map",
-    locationName: "Ancient Library",
-    entrances: 3,
-    rarity: "uncommon" as const,
-    value: 25,
-    icon: "ra-scroll-unfurled",
-  },
-  {
-    name: "Enchanted Map",
-    locationName: "Crystal Caverns",
-    entrances: 4,
-    rarity: "rare" as const,
-    value: 40,
-    icon: "ra-compass",
-  },
-  {
-    name: "Mystical Map",
-    locationName: "Dragon's Lair",
-    entrances: 5,
-    rarity: "legendary" as const,
-    value: 60,
-    icon: "ra-compass",
-  },
-  {
-    name: "Torn Map",
-    locationName: "Abandoned Mine",
-    entrances: 2,
-    rarity: "common" as const,
-    value: 12,
-    icon: "ra-scroll-unfurled",
-  },
-  {
-    name: "Ancient Map",
-    locationName: "Sunken Temple",
-    entrances: 3,
-    rarity: "uncommon" as const,
-    value: 30,
-    icon: "ra-scroll-unfurled",
-  },
-]
-
+// Location flavor text for encounters
 const locations = [
   "a dimly lit corridor",
   "a vast chamber",
@@ -313,18 +94,22 @@ export function generateEvent(playerStats: PlayerStats, _inventory: InventoryIte
   _eventCounter++
   const rand = Math.random()
 
-  // Combat encounter
+  // Combat encounter (40% chance)
   if (rand < 0.4) {
-    const enemy = enemies[Math.floor(Math.random() * enemies.length)]
-    const location = locations[Math.floor(Math.random() * locations.length)]
+    const enemy = ENTITIES.random("enemy")
+    const locationArr = locations[Math.floor(Math.random() * locations.length)]
 
-    if (!enemy || !location) {
-      // Fallback if array access returns undefined (should not happen with non-empty arrays)
+    if (!enemy || !locationArr) {
+      return generateEvent(playerStats, _inventory)
+    }
+
+    // Type assertion for enemy entity
+    if (enemy.entityType !== "enemy") {
       return generateEvent(playerStats, _inventory)
     }
 
     return {
-      description: `You encounter a ${enemy.name} in ${location}. It brandishes its weapon menacingly.`,
+      description: `A ${enemy.name} (${enemy.health} HP, ${enemy.attack} ATK) appears in ${locationArr}.`,
       entity: enemy.name,
       entityRarity: enemy.rarity,
       entityData: {
@@ -340,9 +125,9 @@ export function generateEvent(playerStats: PlayerStats, _inventory: InventoryIte
       },
       choices: [
         {
-          text: "Attack with your weapon",
+          text: "Attack the enemy",
           outcome: {
-            message: `You strike the ${enemy.name} down! Victory is yours.`,
+            message: `${enemy.name} defeated. Took ${Math.max(1, enemy.attack - playerStats.defense)} damage. Gained ${enemy.exp} exp, ${enemy.gold} gold.`,
             entity: enemy.name,
             entityRarity: enemy.rarity,
             healthChange: -Math.max(1, enemy.attack - playerStats.defense),
@@ -351,18 +136,18 @@ export function generateEvent(playerStats: PlayerStats, _inventory: InventoryIte
           },
         },
         {
-          text: "Attempt to flee",
+          text: "Evade and flee",
           outcome: {
-            message: `You escape, but the ${enemy.name} lands a glancing blow as you run.`,
+            message: `Escaped ${enemy.name}. Took ${Math.floor(enemy.attack / 2)} damage while fleeing.`,
             entity: enemy.name,
             entityRarity: enemy.rarity,
             healthChange: -Math.floor(enemy.attack / 2),
           },
         },
         {
-          text: "Try to negotiate",
+          text: "Offer gold (10g)",
           outcome: {
-            message: `The ${enemy.name} accepts your gold and lets you pass.`,
+            message: `${enemy.name} accepts payment. Lost ${Math.min(playerStats.gold, 10)} gold.`,
             entity: enemy.name,
             entityRarity: enemy.rarity,
             goldChange: -Math.min(playerStats.gold, 10),
@@ -372,21 +157,21 @@ export function generateEvent(playerStats: PlayerStats, _inventory: InventoryIte
     }
   }
 
-  // Treasure encounter - now includes maps and consumables
+  // Treasure/Item encounter (30% chance - within 0.4 to 0.7)
   if (rand < 0.7) {
     const encounterType = Math.random()
 
+    // 20% consumable
     if (encounterType < 0.2) {
-      // 20% chance for consumable
-      const consumable = consumables[Math.floor(Math.random() * consumables.length)]
-      const location = locations[Math.floor(Math.random() * locations.length)]
+      const consumable = ENTITIES.random("consumable")
+      const locationArr = locations[Math.floor(Math.random() * locations.length)]
 
-      if (!consumable || !location) {
+      if (!consumable || !locationArr || consumable.entityType !== "consumable") {
         return generateEvent(playerStats, _inventory)
       }
 
       return {
-        description: `You discover a ${consumable.name} in ${location}. It radiates magical energy.`,
+        description: `${consumable.name} found in ${locationArr}.`,
         entity: consumable.name,
         entityRarity: consumable.rarity,
         entityData: {
@@ -399,67 +184,87 @@ export function generateEvent(playerStats: PlayerStats, _inventory: InventoryIte
           {
             text: "Take the consumable",
             outcome: {
-              message: `You add the ${consumable.name} to your inventory.`,
+              message: `${consumable.name} added to inventory.`,
               entity: consumable.name,
               entityRarity: consumable.rarity,
               itemGained: {
                 id: Math.random().toString(36).substr(2, 9),
-                ...consumable,
+                name: consumable.name,
+                type: consumable.type,
+                value: consumable.value,
+                rarity: consumable.rarity,
+                icon: consumable.icon,
+                ...(consumable.consumableEffect && {
+                  consumableEffect: {
+                    type: consumable.consumableEffect.type,
+                    statChanges: {
+                      ...(consumable.consumableEffect.statChanges.health !== undefined && {
+                        health: consumable.consumableEffect.statChanges.health,
+                      }),
+                      ...(consumable.consumableEffect.statChanges.attack !== undefined && {
+                        attack: consumable.consumableEffect.statChanges.attack,
+                      }),
+                      ...(consumable.consumableEffect.statChanges.defense !== undefined && {
+                        defense: consumable.consumableEffect.statChanges.defense,
+                      }),
+                    },
+                    ...(consumable.consumableEffect.duration !== undefined && {
+                      duration: consumable.consumableEffect.duration,
+                    }),
+                  },
+                }),
               },
             },
           },
           {
             text: "Leave it behind",
             outcome: {
-              message: "You decide not to take the consumable and continue exploring.",
+              message: "Item left behind. Continue exploring.",
               entity: "dungeon",
               entityRarity: "common",
             },
           },
         ],
       }
-    } else if (encounterType < 0.5) {
-      // 30% chance for map
-      const mapItem = mapItems[Math.floor(Math.random() * mapItems.length)]
-      const location = locations[Math.floor(Math.random() * locations.length)]
+    }
+    // 30% map
+    else if (encounterType < 0.5) {
+      const mapItem = ENTITIES.random("map")
+      const locationArr = locations[Math.floor(Math.random() * locations.length)]
 
-      if (!mapItem || !location) {
+      if (!mapItem || !locationArr || mapItem.entityType !== "map") {
         return generateEvent(playerStats, _inventory)
       }
 
-      // Type narrowing: after guard, these are guaranteed to be defined
-      const validMapItem = mapItem
-      const validLocation = location
-
       return {
-        description: `You discover a ${validMapItem.name} in ${validLocation}. It shows the way to ${validMapItem.locationName}.`,
-        entity: validMapItem.name,
-        entityRarity: validMapItem.rarity,
+        description: `${mapItem.name} found in ${locationArr}. Shows route to ${mapItem.locationName} (${mapItem.entrances} entrances).`,
+        entity: mapItem.name,
+        entityRarity: mapItem.rarity,
         entityData: {
-          name: validMapItem.name,
-          rarity: validMapItem.rarity,
+          name: mapItem.name,
+          rarity: mapItem.rarity,
           type: "map",
-          entrances: validMapItem.entrances,
-          icon: validMapItem.icon,
+          entrances: mapItem.entrances,
+          icon: mapItem.icon,
         },
         choices: [
           {
             text: "Take the map",
             outcome: {
-              message: `You add the ${validMapItem.name} to your inventory. It has ${validMapItem.entrances} entrances marked.`,
-              entity: validMapItem.name,
-              entityRarity: validMapItem.rarity,
+              message: `${mapItem.name} added to inventory. ${mapItem.entrances} entrances marked.`,
+              entity: mapItem.name,
+              entityRarity: mapItem.rarity,
               itemGained: {
                 id: Math.random().toString(36).substr(2, 9),
-                name: validMapItem.name,
+                name: mapItem.name,
                 type: "map",
-                value: validMapItem.value,
-                rarity: validMapItem.rarity,
-                icon: validMapItem.icon,
+                value: mapItem.value,
+                rarity: mapItem.rarity,
+                icon: mapItem.icon,
                 mapData: {
-                  locationName: validMapItem.locationName,
-                  entrances: validMapItem.entrances,
-                  rarity: validMapItem.rarity,
+                  locationName: mapItem.locationName,
+                  entrances: mapItem.entrances,
+                  rarity: mapItem.rarity,
                 },
               },
             },
@@ -467,50 +272,76 @@ export function generateEvent(playerStats: PlayerStats, _inventory: InventoryIte
           {
             text: "Leave it behind",
             outcome: {
-              message: "You decide not to take the map and continue exploring.",
+              message: "Map left behind. Continue exploring.",
               entity: "dungeon",
               entityRarity: "common",
             },
           },
         ],
       }
-    } else {
-      // 50% chance for regular treasure
-      const treasure = treasures[Math.floor(Math.random() * treasures.length)]
-      const location = locations[Math.floor(Math.random() * locations.length)]
+    }
+    // 50% regular treasure
+    else {
+      const treasure = ENTITIES.random("treasure")
+      const locationArr = locations[Math.floor(Math.random() * locations.length)]
 
-      if (!treasure || !location) {
+      if (!treasure || !locationArr || treasure.entityType !== "treasure") {
         return generateEvent(playerStats, _inventory)
       }
 
       return {
-        description: `You discover a ${treasure.name} in ${location}. It glimmers in the torchlight.`,
+        description: `${treasure.name} found in ${locationArr}.`,
         entity: treasure.name,
         entityRarity: treasure.rarity,
         entityData: {
           name: treasure.name,
           rarity: treasure.rarity,
           type: treasure.type,
-          ...(treasure.stats !== undefined && { stats: treasure.stats }),
-          ...(treasure.icon !== undefined && { icon: treasure.icon }),
+          icon: treasure.icon,
+          ...(treasure.stats &&
+            (treasure.stats.health !== undefined ||
+              treasure.stats.attack !== undefined ||
+              treasure.stats.defense !== undefined) && {
+              stats: {
+                ...(treasure.stats.health !== undefined && { health: treasure.stats.health }),
+                ...(treasure.stats.attack !== undefined && { attack: treasure.stats.attack }),
+                ...(treasure.stats.defense !== undefined && { defense: treasure.stats.defense }),
+              },
+            }),
         },
         choices: [
           {
             text: "Take the item",
             outcome: {
-              message: `You add the ${treasure.name} to your inventory.`,
+              message: `${treasure.name} added to inventory.`,
               entity: treasure.name,
               entityRarity: treasure.rarity,
               itemGained: {
                 id: Math.random().toString(36).substr(2, 9),
-                ...treasure,
+                name: treasure.name,
+                type: treasure.type,
+                value: treasure.value,
+                rarity: treasure.rarity,
+                icon: treasure.icon,
+                ...(treasure.stats &&
+                  (treasure.stats.health !== undefined ||
+                    treasure.stats.attack !== undefined ||
+                    treasure.stats.defense !== undefined) && {
+                    stats: {
+                      ...(treasure.stats.health !== undefined && { health: treasure.stats.health }),
+                      ...(treasure.stats.attack !== undefined && { attack: treasure.stats.attack }),
+                      ...(treasure.stats.defense !== undefined && {
+                        defense: treasure.stats.defense,
+                      }),
+                    },
+                  }),
               },
             },
           },
           {
             text: "Leave it behind",
             outcome: {
-              message: "You decide not to take the item and continue exploring.",
+              message: "Item left behind. Continue exploring.",
               entity: "dungeon",
               entityRarity: "common",
             },
@@ -520,106 +351,76 @@ export function generateEvent(playerStats: PlayerStats, _inventory: InventoryIte
     }
   }
 
-  // Mysterious encounter
-  const mysteryEvents = [
-    {
-      description: "A mysterious merchant appears from the shadows, offering his wares.",
-      entity: "merchant",
-      entityRarity: "uncommon" as const,
-      entityData: {
-        name: "Mysterious Merchant",
-        rarity: "uncommon" as const,
-        type: "npc",
-        icon: "ra-player",
-      },
-      choices: [
-        {
-          text: "Buy a health potion (20 gold)",
-          outcome: {
-            message: "The merchant hands you a glowing potion. Your health is restored!",
-            entity: "potion",
-            entityRarity: "common" as const,
-            goldChange: -20,
-            healthChange: 30,
-          },
-        },
-        {
-          text: "Decline and move on",
-          outcome: {
-            message: "The merchant vanishes as mysteriously as he appeared.",
-            entity: "merchant",
-            entityRarity: "uncommon" as const,
-          },
-        },
-      ],
-    },
-    {
-      description: "You find a magical fountain. Its waters shimmer with an otherworldly glow.",
-      entity: "fountain",
-      entityRarity: "rare" as const,
-      entityData: {
-        name: "Magical Fountain",
-        rarity: "rare" as const,
-        type: "object",
-        icon: "ra-droplet",
-      },
-      choices: [
-        {
-          text: "Drink from the fountain",
-          outcome: {
-            message: "The magical waters invigorate you! Your health is fully restored.",
-            entity: "fountain",
-            entityRarity: "rare" as const,
-            healthChange: playerStats.maxHealth - playerStats.health,
-          },
-        },
-        {
-          text: "Continue without drinking",
-          outcome: {
-            message: "You decide not to risk it and move on.",
-            entity: "dungeon",
-            entityRarity: "common" as const,
-          },
-        },
-      ],
-    },
-    {
-      description: "A strange altar stands before you, covered in ancient runes.",
-      entity: "altar",
-      entityRarity: "epic" as const,
-      entityData: {
-        name: "Ancient Altar",
-        rarity: "epic" as const,
-        type: "object",
-        icon: "ra-rune-stone",
-      },
-      choices: [
-        {
-          text: "Offer gold to the altar",
-          outcome: {
-            message: "The altar glows and grants you experience!",
-            entity: "altar",
-            entityRarity: "epic" as const,
-            goldChange: -15,
-            experienceChange: 40,
-          },
-        },
-        {
-          text: "Leave the altar alone",
-          outcome: {
-            message: "You decide not to disturb the ancient altar.",
-            entity: "altar",
-            entityRarity: "epic" as const,
-          },
-        },
-      ],
-    },
-  ]
+  // Mystery encounter (30% chance - remaining 0.7 to 1.0)
+  let encounter = ENTITIES.random("encounter")
 
-  const event = mysteryEvents[Math.floor(Math.random() * mysteryEvents.length)]
-  if (!event) {
-    // Fallback to first event (should never happen with non-empty array)
-    return mysteryEvents[0]!
+  if (!encounter || encounter.entityType !== "encounter") {
+    // Fallback to first canonical encounter
+    const fallback = ENTITIES.get("encounter:mysterious_merchant")
+    if (!fallback || fallback.entityType !== "encounter") {
+      // Last resort: generate a simple generic event
+      return {
+        description: "Crossroads ahead.",
+        entity: "crossroads",
+        entityRarity: "common",
+        entityData: {
+          name: "Crossroads",
+          rarity: "common",
+          type: "object",
+          icon: "ra-crystal-ball",
+        },
+        choices: [
+          {
+            text: "Continue forward",
+            outcome: {
+              message: "Moving forward.",
+              entity: "dungeon",
+              entityRarity: "common",
+            },
+          },
+        ],
+      }
+    }
+    encounter = fallback
   }
-  return event
+
+  // Transform encounter entity to GameEvent format
+  // Special handling for fountain to calculate health change
+  const choices = encounter.choices.map((choice) => {
+    const baseOutcome = choice.outcome
+
+    // Special case: Magical Fountain calculates health dynamically
+    let healthChange = baseOutcome.healthChange
+    if (encounter.name === "Magical Fountain" && choice.text.includes("Drink")) {
+      healthChange = playerStats.maxHealth - playerStats.health
+    }
+
+    return {
+      text: choice.text,
+      outcome: {
+        message: baseOutcome.message,
+        entity: encounter.name,
+        entityRarity: encounter.rarity,
+        ...(healthChange !== undefined && { healthChange }),
+        ...(baseOutcome.goldChange !== undefined && { goldChange: baseOutcome.goldChange }),
+        ...(baseOutcome.experienceChange !== undefined && {
+          experienceChange: baseOutcome.experienceChange,
+        }),
+        ...(baseOutcome.statChanges !== undefined && { statChanges: baseOutcome.statChanges }),
+      },
+    }
+  })
+
+  return {
+    description: encounter.description,
+    entity: encounter.name,
+    entityRarity: encounter.rarity,
+    entityData: {
+      name: encounter.name,
+      rarity: encounter.rarity,
+      type: "encounter",
+      icon: encounter.icon,
+    },
+    choices,
+  }
 }
