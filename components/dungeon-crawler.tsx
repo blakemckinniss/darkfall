@@ -182,6 +182,29 @@ export function DungeonCrawler() {
     return "ai-tools"
   })
 
+  // Debug console state
+  interface DebugLogEntry {
+    id: string
+    timestamp: number
+    type: "game" | "ai" | "state" | "error" | "system"
+    message: string
+    data?: unknown
+  }
+  const [debugLogs, setDebugLogs] = useState<DebugLogEntry[]>([])
+  const debugLogRef = useRef<HTMLDivElement>(null)
+
+  // Helper function to add debug logs
+  const addDebugLog = (type: DebugLogEntry["type"], message: string, data?: unknown) => {
+    const newLog: DebugLogEntry = {
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      type,
+      message,
+      data,
+    }
+    setDebugLogs((prev) => [...prev.slice(-99), newLog]) // Keep last 100 logs
+  }
+
   // Performance optimization: ref for debounced save timeout
   const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
 
@@ -189,6 +212,7 @@ export function DungeonCrawler() {
     const savedState = loadGameState()
     if (savedState) {
       console.log("[v0] Loading saved game state:", savedState)
+      addDebugLog("system", "Loading saved game state from localStorage")
       setBaseStats(savedState.playerStats)
       setInventory(savedState.inventory)
       setEquippedItems(savedState.equippedItems)
@@ -198,7 +222,14 @@ export function DungeonCrawler() {
       setGeneratedPortraits(savedState.generatedPortraits || [])
       console.log("[v0] Player portrait loaded:", savedState.activePortrait)
       console.log("[v0] Generated portraits loaded:", savedState.generatedPortraits)
+      addDebugLog(
+        "state",
+        `Game loaded: Level ${savedState.playerStats.level}, ${savedState.inventory.length} items`
+      )
+    } else {
+      addDebugLog("system", "No saved game state found - starting fresh")
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Performance optimization: Debounced game state save (P0)
@@ -234,6 +265,13 @@ export function DungeonCrawler() {
       localStorage.setItem("developerActiveTab", developerActiveTab)
     }
   }, [developerActiveTab])
+
+  // Auto-scroll debug logs
+  useEffect(() => {
+    if (debugLogRef.current) {
+      debugLogRef.current.scrollTop = debugLogRef.current.scrollHeight
+    }
+  }, [debugLogs])
 
   // Force save on tab close/navigation to prevent data loss
   useEffect(() => {
@@ -889,6 +927,7 @@ export function DungeonCrawler() {
     if (!itemPrompt.trim()) return
 
     setIsGeneratingItem(true)
+    addDebugLog("ai", `Requesting item generation: "${itemPrompt}"`)
     try {
       console.log("[v0] Generating item with prompt:", itemPrompt)
       const response = await fetch("/api/generate-item", {
@@ -903,6 +942,7 @@ export function DungeonCrawler() {
 
       const { item } = await response.json()
       console.log("[v0] Item generated:", item)
+      addDebugLog("ai", `Item generated: ${item.name} (${item.rarity})`, item)
 
       // Add the generated item to inventory
       setInventory((prev) => [...prev, item])
@@ -912,6 +952,7 @@ export function DungeonCrawler() {
       setItemPrompt("")
     } catch (error) {
       console.error("[v0] Failed to generate item:", error)
+      addDebugLog("error", `Failed to generate item: ${error}`)
       addLogEntry("Failed to generate item. Please try again.", "error")
     }
     setIsGeneratingItem(false)
@@ -1311,7 +1352,8 @@ export function DungeonCrawler() {
                               // eslint-disable-next-line react/no-array-index-key
                               key={choiceIndex}
                               variant="ghost"
-                              className="justify-start text-left h-auto py-2 px-3 hover:bg-accent/10 hover:text-accent transition-all font-light text-sm"
+                              className="choice-stagger justify-start text-left h-auto py-2 px-3 hover:bg-accent/10 hover:text-accent hover:translate-x-1 active:scale-[0.98] transition-all duration-200 font-light text-sm"
+                              style={{ animationDelay: `${choiceIndex * 50}ms` }}
                               onClick={() => handleChoice(choice)}
                             >
                               <span className="text-accent mr-2">›</span>
@@ -1356,7 +1398,8 @@ export function DungeonCrawler() {
                                   // eslint-disable-next-line react/no-array-index-key
                                   key={choiceIndex}
                                   variant="ghost"
-                                  className="justify-start text-left h-auto py-2 px-3 hover:bg-accent/10 hover:text-accent transition-all font-light text-sm"
+                                  className="choice-stagger justify-start text-left h-auto py-2 px-3 hover:bg-accent/10 hover:text-accent hover:translate-x-1 active:scale-[0.98] transition-all duration-200 font-light text-sm"
+                                  style={{ animationDelay: `${choiceIndex * 50}ms` }}
                                   onClick={() => handleChoice(choice)}
                                 >
                                   <span className="text-accent mr-2">›</span>
@@ -1522,6 +1565,13 @@ export function DungeonCrawler() {
                   >
                     <span className="text-base">📊</span>
                     <span>Entity Registry</span>
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="debug-console"
+                    className="flex-1 data-[state=active]:bg-accent/20 data-[state=active]:text-accent text-xs py-2 flex items-center justify-center gap-1.5"
+                  >
+                    <span className="text-base">🐛</span>
+                    <span>Debug Console</span>
                   </TabsTrigger>
                 </TabsList>
 
@@ -1799,6 +1849,83 @@ export function DungeonCrawler() {
                           </div>
                         ))}
                       </div>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                {/* Debug Console Tab */}
+                <TabsContent
+                  value="debug-console"
+                  className="flex-1 flex flex-col overflow-hidden mt-0 min-w-0 w-full"
+                >
+                  <div className="flex flex-col h-full gap-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                        Debug Console ({debugLogs.length}/100 logs)
+                      </div>
+                      <Button
+                        onClick={() => setDebugLogs([])}
+                        variant="outline"
+                        className="h-6 text-[10px] px-2 bg-red-500/10 hover:bg-red-500/20 border-red-500/30 text-red-400"
+                      >
+                        Clear Logs
+                      </Button>
+                    </div>
+
+                    <div
+                      ref={debugLogRef}
+                      className="flex-1 overflow-y-auto bg-black/40 rounded border border-border/30 p-3 font-mono text-[10px] leading-relaxed"
+                    >
+                      {debugLogs.length === 0 ? (
+                        <div className="text-muted-foreground text-center py-8">
+                          No debug logs yet. Interact with the game to see events logged here.
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-1">
+                          {debugLogs.map((log) => {
+                            const time = new Date(log.timestamp).toLocaleTimeString("en-US", {
+                              hour12: false,
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              second: "2-digit",
+                              fractionalSecondDigits: 3,
+                            })
+                            const typeColor =
+                              log.type === "error"
+                                ? "text-red-400"
+                                : log.type === "ai"
+                                  ? "text-purple-400"
+                                  : log.type === "state"
+                                    ? "text-blue-400"
+                                    : log.type === "game"
+                                      ? "text-green-400"
+                                      : "text-amber-400"
+
+                            return (
+                              <div
+                                key={log.id}
+                                className="hover:bg-secondary/20 px-1 rounded transition-colors"
+                              >
+                                <span className="text-muted-foreground">[{time}]</span>
+                                <span className={`ml-2 ${typeColor} uppercase font-semibold`}>
+                                  [{log.type}]
+                                </span>
+                                <span className="ml-2 text-foreground">{log.message}</span>
+                                {log.data !== undefined && (
+                                  <pre className="ml-8 text-muted-foreground text-[9px] mt-0.5 whitespace-pre-wrap break-all">
+                                    {JSON.stringify(log.data, null, 2)}
+                                  </pre>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="text-[9px] text-muted-foreground">
+                      Logs are automatically cleared after 100 entries. Types: SYSTEM (startup),
+                      STATE (saves), GAME (events), AI (generation), ERROR (failures)
                     </div>
                   </div>
                 </TabsContent>
