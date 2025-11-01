@@ -212,6 +212,10 @@ export function DungeonCrawler() {
   const [debugLogFilters, setDebugLogFilters] = useState<Set<DebugLogEntry["type"]>>(
     new Set(["system", "state", "game", "ai", "error"])
   )
+  const [debugLogSearchQuery, setDebugLogSearchQuery] = useState("")
+  const [debugTimestampFormat, setDebugTimestampFormat] = useState<"absolute" | "relative">(
+    "absolute"
+  )
 
   // Helper function to add debug logs
   const addDebugLog = (type: DebugLogEntry["type"], message: string, data?: unknown) => {
@@ -256,6 +260,34 @@ export function DungeonCrawler() {
     a.click()
     URL.revokeObjectURL(url)
     addDebugLog("system", `Exported ${debugLogs.length} logs to file`)
+  }
+
+  // Helper to clear logs with persistence cleanup
+  const clearDebugLogs = () => {
+    setDebugLogs([])
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.removeItem("debugLogs")
+      } catch (error) {
+        console.error("[Debug] Failed to clear persisted logs:", error)
+      }
+    }
+  }
+
+  // Helper to format relative time
+  const formatRelativeTime = (timestamp: number): string => {
+    const now = Date.now()
+    const diff = now - timestamp
+    const seconds = Math.floor(diff / 1000)
+    const minutes = Math.floor(seconds / 60)
+    const hours = Math.floor(minutes / 60)
+    const days = Math.floor(hours / 24)
+
+    if (seconds < 5) return "just now"
+    if (seconds < 60) return `${seconds}s ago`
+    if (minutes < 60) return `${minutes}m ago`
+    if (hours < 24) return `${hours}h ago`
+    return `${days}d ago`
   }
 
   // Performance optimization: ref for debounced save timeout
@@ -2036,10 +2068,30 @@ export function DungeonCrawler() {
                     <div className="flex items-center justify-between gap-2">
                       <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
                         Debug Console (
-                        {debugLogs.filter((log) => debugLogFilters.has(log.type)).length}/
-                        {debugLogs.length})
+                        {
+                          debugLogs.filter(
+                            (log) =>
+                              debugLogFilters.has(log.type) &&
+                              (debugLogSearchQuery === "" ||
+                                log.message
+                                  .toLowerCase()
+                                  .includes(debugLogSearchQuery.toLowerCase()))
+                          ).length
+                        }
+                        /{debugLogs.length})
                       </div>
                       <div className="flex gap-2">
+                        <button
+                          onClick={() =>
+                            setDebugTimestampFormat((prev) =>
+                              prev === "absolute" ? "relative" : "absolute"
+                            )
+                          }
+                          className="h-6 text-[9px] px-2 rounded border border-border/30 bg-secondary/20 hover:bg-secondary/30 transition-colors text-muted-foreground"
+                          title="Toggle timestamp format"
+                        >
+                          {debugTimestampFormat === "absolute" ? "⏰" : "⏱"}
+                        </button>
                         <Button
                           onClick={exportDebugLogs}
                           variant="outline"
@@ -2049,8 +2101,9 @@ export function DungeonCrawler() {
                           Export
                         </Button>
                         <Button
-                          onClick={() => setDebugLogs([])}
+                          onClick={clearDebugLogs}
                           variant="outline"
+                          disabled={debugLogs.length === 0}
                           className="h-6 text-[10px] px-2 bg-red-500/10 hover:bg-red-500/20 border-red-500/30 text-red-400"
                         >
                           Clear
@@ -2058,11 +2111,27 @@ export function DungeonCrawler() {
                       </div>
                     </div>
 
+                    {/* Search input */}
+                    <Input
+                      type="text"
+                      placeholder="Search logs..."
+                      value={debugLogSearchQuery}
+                      onChange={(e) => setDebugLogSearchQuery(e.target.value)}
+                      className="h-7 text-[11px] bg-black/40 border-border/30"
+                    />
+
                     {/* Log type filters */}
                     <div className="flex flex-wrap gap-2">
                       {(["system", "state", "game", "ai", "error"] as const).map((type) => {
                         const isActive = debugLogFilters.has(type)
                         const count = debugLogs.filter((log) => log.type === type).length
+                        const getSeverityBadge = () => {
+                          if (type === "error") return "🔴"
+                          if (type === "ai") return "🟣"
+                          if (type === "state") return "🔵"
+                          if (type === "game") return "🟢"
+                          return "🟡"
+                        }
                         const color =
                           type === "error"
                             ? "text-red-400 border-red-400/30"
@@ -2078,11 +2147,14 @@ export function DungeonCrawler() {
                           <button
                             key={type}
                             onClick={() => toggleLogFilter(type)}
-                            className={`text-[9px] px-2 py-1 rounded border transition-all ${color} ${
+                            className={`text-[9px] px-2 py-1 rounded border transition-all flex items-center gap-1 ${color} ${
                               isActive ? "bg-current/10 opacity-100" : "opacity-30 hover:opacity-60"
                             }`}
                           >
-                            {type.toUpperCase()} ({count})
+                            <span>{getSeverityBadge()}</span>
+                            <span>
+                              {type.toUpperCase()} ({count})
+                            </span>
                           </button>
                         )
                       })}
@@ -2092,24 +2164,39 @@ export function DungeonCrawler() {
                       ref={debugLogRef}
                       className="flex-1 overflow-y-auto bg-black/40 rounded border border-border/30 p-3 font-mono text-[10px] leading-relaxed"
                     >
-                      {debugLogs.filter((log) => debugLogFilters.has(log.type)).length === 0 ? (
+                      {debugLogs.filter(
+                        (log) =>
+                          debugLogFilters.has(log.type) &&
+                          (debugLogSearchQuery === "" ||
+                            log.message.toLowerCase().includes(debugLogSearchQuery.toLowerCase()))
+                      ).length === 0 ? (
                         <div className="text-muted-foreground text-center py-8">
                           {debugLogs.length === 0
                             ? "No debug logs yet. Interact with the game to see events logged here."
-                            : "No logs match current filters. Enable log types above."}
+                            : "No logs match current filters or search query."}
                         </div>
                       ) : (
                         <div className="flex flex-col gap-1">
                           {debugLogs
-                            .filter((log) => debugLogFilters.has(log.type))
+                            .filter(
+                              (log) =>
+                                debugLogFilters.has(log.type) &&
+                                (debugLogSearchQuery === "" ||
+                                  log.message
+                                    .toLowerCase()
+                                    .includes(debugLogSearchQuery.toLowerCase()))
+                            )
                             .map((log) => {
-                              const time = new Date(log.timestamp).toLocaleTimeString("en-US", {
-                                hour12: false,
-                                hour: "2-digit",
-                                minute: "2-digit",
-                                second: "2-digit",
-                                fractionalSecondDigits: 3,
-                              })
+                              const time =
+                                debugTimestampFormat === "absolute"
+                                  ? new Date(log.timestamp).toLocaleTimeString("en-US", {
+                                      hour12: false,
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                      second: "2-digit",
+                                      fractionalSecondDigits: 3,
+                                    })
+                                  : formatRelativeTime(log.timestamp)
                               const typeColor =
                                 log.type === "error"
                                   ? "text-red-400"

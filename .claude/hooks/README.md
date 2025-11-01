@@ -45,9 +45,12 @@ This directory contains hook scripts for Claude Code automation.
 **What it does**:
 - **Validates prompts** against project guidelines
 - **Blocks** attempts to create documentation, demos, or examples (per CLAUDE.md guidelines)
-- **Enforces task completion requirements** (confidence levels, next steps)
+- **🎯 Task type detection** - Automatically identifies bug fixes, features, refactoring, or performance work
+- **📋 Task-specific checklists** - Shows relevant checklist based on detected task type
+- **💡 Prompt quality analysis** - Warns about vague prompts and suggests improvements
+- **🎨 Smart context filtering** - Only shows errors in files mentioned in prompt or recently modified
+- **Enforces task completion requirements** (confidence levels, next steps, technical debt documentation)
 - **Adds context** about uncommitted changes before processing
-- **Reports** linting status to help maintain code quality
 - **⚡ PERFORMANCE OPTIMIZED**: Runs TypeScript + ESLint checks in parallel (2x speedup)
 - **Smart caching** with 60-second TTL and file modification detection
 
@@ -60,12 +63,20 @@ This directory contains hook scripts for Claude Code automation.
 - **Final confidence (0-100%)** - Must state after completing tasks
 - **Zen MCP consultation** - Required when confidence < 80%
 - **Next steps** - Must always provide after task completion
+- **Technical Debt & Risks** - Must document any compromises or future concerns
 - **Confidence guidelines** - 90-100% high, 80-89% good, 70-79% uncertain, <70% low
 
-**Performance features** (NEW):
+**Intelligent features** (Phase 1 - NEW):
+- **Task detection**: Identifies bugfix, feature, refactor, or performance tasks from prompt keywords
+- **Dynamic checklists**: Bug fixes get testing reminders, features get architecture questions, etc.
+- **Prompt quality warnings**: Detects vague prompts ("fix it", "make it better") and suggests specifics
+- **Smart filtering**: Only shows TypeScript/ESLint errors for files mentioned in prompt or recently modified
+- **Reduced noise**: "smart" mode shows "X relevant file(s)" instead of full project scan
+
+**Performance features**:
 - **Parallel execution**: TypeScript and ESLint run simultaneously for 2x speedup
-- **Extended cache**: 60-second TTL (up from 30s) for better performance with low-activity sessions
-- **Targeted checks**: Only validates modified files when possible to reduce overhead
+- **Extended cache**: 60-second TTL for better performance with low-activity sessions
+- **Intelligent targeting**: Only validates files relevant to your current task
 
 ### PostToolUse Hook (`post-edit-format.sh`)
 

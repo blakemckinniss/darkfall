@@ -7,6 +7,63 @@ INPUT=$(cat)
 # Extract prompt
 PROMPT=$(echo "$INPUT" | jq -r '.prompt // ""')
 
+# ============================================================================
+# TASK TYPE DETECTION (Phase 1a)
+# ============================================================================
+detect_task_type() {
+  local prompt="$1"
+
+  # Priority order: most specific first
+  if echo "$prompt" | grep -qiE '\b(fix|bug|error|issue|crash|broken|failing|fails)\b'; then
+    echo "bugfix"
+  elif echo "$prompt" | grep -qiE '\b(refactor|clean|improve structure|reorganize|simplify)\b'; then
+    echo "refactor"
+  elif echo "$prompt" | grep -qiE '\b(performance|optimize|speed|slow|faster|memory|efficient)\b'; then
+    echo "performance"
+  elif echo "$prompt" | grep -qiE '\b(add|implement|create|new feature|build)\b'; then
+    echo "feature"
+  else
+    echo "general"
+  fi
+}
+
+TASK_TYPE=$(detect_task_type "$PROMPT")
+
+# ============================================================================
+# PROMPT QUALITY ANALYSIS (Phase 1c - Highest ROI)
+# ============================================================================
+check_prompt_quality() {
+  local prompt="$1"
+  local quality_warnings=""
+
+  # Detect extremely vague prompts
+  if echo "$prompt" | grep -qiE '^\s*(fix it|make it better|handle this|do it|help)\s*$'; then
+    quality_warnings+="⚠️  **Vague Prompt Detected** - Consider specifying: What's wrong? What should happen? Which files?"$'\n'
+  fi
+
+  # Suggest file paths if component/function mentioned but no path
+  if echo "$prompt" | grep -qiE '\b(component|function|class|file|module)\b' && ! echo "$prompt" | grep -qE '\.(ts|tsx|js|jsx|css|json)'; then
+    quality_warnings+="💡 **Tip**: Include file paths (e.g., \`components/foo.tsx\`) for faster assistance."$'\n'
+  fi
+
+  echo "$quality_warnings"
+}
+
+PROMPT_QUALITY_WARNINGS=$(check_prompt_quality "$PROMPT")
+
+# ============================================================================
+# SMART CONTEXT FILTERING (Phase 1d)
+# Extract files mentioned in prompt for intelligent error filtering
+# ============================================================================
+extract_mentioned_files() {
+  local prompt="$1"
+
+  # Extract explicit file paths from prompt
+  echo "$prompt" | grep -oE '[a-zA-Z0-9/_.-]+\.(ts|tsx|js|jsx|css|json)' || echo ""
+}
+
+MENTIONED_FILES=$(extract_mentioned_files "$PROMPT")
+
 # Validation rules
 BLOCKED_PATTERNS=(
   "create.*README"
@@ -33,6 +90,51 @@ done
 # Add helpful context about uncommitted changes and project state
 CONTEXT=""
 
+# Add prompt quality warnings if any
+if [ -n "$PROMPT_QUALITY_WARNINGS" ]; then
+  CONTEXT+="$PROMPT_QUALITY_WARNINGS"$'\n'
+fi
+
+# ============================================================================
+# TASK-SPECIFIC CHECKLISTS (Phase 1b - excluding security)
+# ============================================================================
+add_task_checklist() {
+  local task_type="$1"
+
+  case "$task_type" in
+    bugfix)
+      CONTEXT+="### 🐛 Bug Fix Checklist"$'\n'
+      CONTEXT+="- [ ] Can you reproduce the bug reliably?"$'\n'
+      CONTEXT+="- [ ] Do you understand the root cause?"$'\n'
+      CONTEXT+="- [ ] Will you add a test that fails without the fix?"$'\n'
+      CONTEXT+="- [ ] Are there similar bugs elsewhere in the codebase?"$'\n\n'
+      ;;
+    feature)
+      CONTEXT+="### ✨ Feature Development Checklist"$'\n'
+      CONTEXT+="- [ ] Does this fit existing architecture patterns?"$'\n'
+      CONTEXT+="- [ ] Are you following the project's UI/UX standards?"$'\n'
+      CONTEXT+="- [ ] Will you add tests for the new functionality?"$'\n'
+      CONTEXT+="- [ ] Is the feature scope clearly defined?"$'\n\n'
+      ;;
+    refactor)
+      CONTEXT+="### 🔧 Refactoring Checklist"$'\n'
+      CONTEXT+="- [ ] Are you maintaining backward compatibility?"$'\n'
+      CONTEXT+="- [ ] Do existing tests cover this code?"$'\n'
+      CONTEXT+="- [ ] Have you checked all usages/references?"$'\n'
+      CONTEXT+="- [ ] Is the refactor necessary or over-engineering?"$'\n\n'
+      ;;
+    performance)
+      CONTEXT+="### ⚡ Performance Optimization Checklist"$'\n'
+      CONTEXT+="- [ ] What are you measuring? (baseline metrics)"$'\n'
+      CONTEXT+="- [ ] Have you profiled to find the actual bottleneck?"$'\n'
+      CONTEXT+="- [ ] Will you verify the improvement with benchmarks?"$'\n'
+      CONTEXT+="- [ ] Could this optimization harm readability?"$'\n\n'
+      ;;
+  esac
+}
+
+add_task_checklist "$TASK_TYPE"
+
 # Add mandatory task requirements
 CONTEXT+="## 🎯 Task Completion Requirements (MANDATORY)"$'\n\n'
 CONTEXT+="For EVERY task you perform, you MUST:"$'\n\n'
@@ -55,6 +157,11 @@ CONTEXT+="   - Batch similar operations together (read multiple files, run tests
 CONTEXT+="   - Create helper bash scripts for repetitive multi-step operations"$'\n'
 CONTEXT+="   - Use Task tool with parallel agents when appropriate"$'\n'
 CONTEXT+="   - Example: \"Reading 5 files in parallel\" or \"Creating script for test+build workflow\""$'\n\n'
+CONTEXT+="5. **Document Technical Debt & Risks (MANDATORY)**"$'\n'
+CONTEXT+="   - ALWAYS add a \"Technical Debt & Risks\" section at the end"$'\n'
+CONTEXT+="   - List any compromises, shortcuts, or future concerns"$'\n'
+CONTEXT+="   - Note potential conflicts or integration risks"$'\n'
+CONTEXT+="   - Format: \"## ⚠️ Technical Debt & Risks:\" followed by numbered list"$'\n\n'
 CONTEXT+="**Confidence Level Guidelines:**"$'\n'
 CONTEXT+="- 90-100%: High certainty, tested and validated"$'\n'
 CONTEXT+="- 80-89%: Good confidence, standard approach"$'\n'
@@ -76,7 +183,10 @@ if [ -d "$CLAUDE_PROJECT_DIR/.git" ]; then
   fi
 fi
 
-# Check for TypeScript and linting errors (smart mode: only check modified files if uncommitted changes exist)
+# ============================================================================
+# SMART TYPE/LINT CHECKING (Phase 1d - Intelligent Filtering)
+# Only check files relevant to the prompt or recently modified
+# ============================================================================
 if [ -f "$CLAUDE_PROJECT_DIR/package.json" ] && command -v pnpm &> /dev/null; then
   # Cache management (skip checks if run within last 60 seconds and no file changes)
   CACHE_DIR="/tmp/claude-hook-cache"
@@ -107,16 +217,20 @@ if [ -f "$CLAUDE_PROJECT_DIR/package.json" ] && command -v pnpm &> /dev/null; th
     # Update cache timestamp
     date +%s > "$CACHE_FILE"
 
-    # Get list of modified TypeScript/JavaScript files
-    MODIFIED_FILES=""
+    # Get list of modified TypeScript/JavaScript files from git
+    GIT_MODIFIED_FILES=""
     if [ -d "$CLAUDE_PROJECT_DIR/.git" ]; then
-      MODIFIED_FILES=$(git -C "$CLAUDE_PROJECT_DIR" diff --name-only --diff-filter=ACMR HEAD 2>/dev/null | grep -E '\.(ts|tsx|js|jsx)$' || true)
+      GIT_MODIFIED_FILES=$(git -C "$CLAUDE_PROJECT_DIR" diff --name-only --diff-filter=ACMR HEAD 2>/dev/null | grep -E '\.(ts|tsx|js|jsx)$' || true)
     fi
 
-    # Determine check mode
-    if [ -n "$MODIFIED_FILES" ]; then
-      CHECK_MODE="modified"
-      FILE_COUNT=$(echo "$MODIFIED_FILES" | wc -l | tr -d ' ')
+    # Combine mentioned files from prompt + git modified files for relevance
+    RELEVANT_FILES="$MENTIONED_FILES"$'\n'"$GIT_MODIFIED_FILES"
+    RELEVANT_FILES=$(echo "$RELEVANT_FILES" | grep -v '^$' | sort -u || echo "")
+
+    # Determine check mode: smart (relevant files only) or full (no relevant files identified)
+    if [ -n "$RELEVANT_FILES" ]; then
+      CHECK_MODE="smart"
+      FILE_COUNT=$(echo "$RELEVANT_FILES" | wc -l | tr -d ' ')
     else
       CHECK_MODE="full"
     fi
@@ -131,21 +245,16 @@ if [ -f "$CLAUDE_PROJECT_DIR/package.json" ] && command -v pnpm &> /dev/null; th
 
   # Start TypeScript check in background
   (
-    if [ "$CHECK_MODE" = "modified" ]; then
-      # Run full typecheck but we'll filter output later
-      cd "$CLAUDE_PROJECT_DIR" && pnpm tsc --noEmit 2>&1 || true
-    else
-      # Full project typecheck
-      cd "$CLAUDE_PROJECT_DIR" && pnpm tsc --noEmit 2>&1 || true
-    fi
+    # Always run full typecheck (filtering happens after)
+    cd "$CLAUDE_PROJECT_DIR" && pnpm tsc --noEmit 2>&1 || true
   ) > "$TSC_OUTPUT_FILE" &
   TSC_PID=$!
 
   # Start ESLint check in background
   (
-    if [ "$CHECK_MODE" = "modified" ] && [ -n "$MODIFIED_FILES" ]; then
-      # Targeted lint check on modified files only
-      LINT_FILES=$(echo "$MODIFIED_FILES" | tr '\n' ' ')
+    if [ "$CHECK_MODE" = "smart" ] && [ -n "$RELEVANT_FILES" ]; then
+      # Targeted lint check on relevant files only
+      LINT_FILES=$(echo "$RELEVANT_FILES" | tr '\n' ' ')
       cd "$CLAUDE_PROJECT_DIR" && pnpm eslint $LINT_FILES 2>&1 || true
     else
       # Full project lint
@@ -158,17 +267,19 @@ if [ -f "$CLAUDE_PROJECT_DIR/package.json" ] && command -v pnpm &> /dev/null; th
   wait $TSC_PID
   wait $LINT_PID
 
-  # Process TypeScript results
+  # Process TypeScript results with smart filtering
   TYPECHECK_OUTPUT=$(cat "$TSC_OUTPUT_FILE")
-  if [ "$CHECK_MODE" = "modified" ]; then
-    # Filter output to modified files only
+  if [ "$CHECK_MODE" = "smart" ] && [ -n "$RELEVANT_FILES" ]; then
+    # Filter output to relevant files only
     FILTERED_OUTPUT=""
     while IFS= read -r file; do
-      FILE_ERRORS=$(echo "$TYPECHECK_OUTPUT" | grep "^$file(" || true)
-      if [ -n "$FILE_ERRORS" ]; then
-        FILTERED_OUTPUT+="$FILE_ERRORS"$'\n'
+      if [ -n "$file" ]; then
+        FILE_ERRORS=$(echo "$TYPECHECK_OUTPUT" | grep "^$file(" || true)
+        if [ -n "$FILE_ERRORS" ]; then
+          FILTERED_OUTPUT+="$FILE_ERRORS"$'\n'
+        fi
       fi
-    done <<< "$MODIFIED_FILES"
+    done <<< "$RELEVANT_FILES"
     TYPECHECK_ERRORS=$(echo "$FILTERED_OUTPUT" | grep -c "error TS" || true)
     DISPLAY_OUTPUT="$FILTERED_OUTPUT"
   else
@@ -178,8 +289,8 @@ if [ -f "$CLAUDE_PROJECT_DIR/package.json" ] && command -v pnpm &> /dev/null; th
 
   if [ "$TYPECHECK_ERRORS" -gt 0 ]; then
     CONTEXT+="### 🔴 TypeScript Status (MANDATORY CHECK)"$'\n'
-    if [ "$CHECK_MODE" = "modified" ]; then
-      CONTEXT+="❌ $TYPECHECK_ERRORS type error(s) in $FILE_COUNT modified file(s)"$'\n\n'
+    if [ "$CHECK_MODE" = "smart" ]; then
+      CONTEXT+="❌ $TYPECHECK_ERRORS type error(s) in $FILE_COUNT relevant file(s)"$'\n\n'
     else
       CONTEXT+="❌ $TYPECHECK_ERRORS type error(s) detected (full project check)"$'\n\n'
     fi
@@ -190,8 +301,8 @@ if [ -f "$CLAUDE_PROJECT_DIR/package.json" ] && command -v pnpm &> /dev/null; th
     CONTEXT+="**Action required:** These MUST be fixed before committing per strict TypeScript policy."$'\n\n'
   else
     CONTEXT+="### ✅ TypeScript Status"$'\n'
-    if [ "$CHECK_MODE" = "modified" ]; then
-      CONTEXT+="No type errors in $FILE_COUNT modified file(s)."$'\n\n'
+    if [ "$CHECK_MODE" = "smart" ]; then
+      CONTEXT+="No type errors in $FILE_COUNT relevant file(s)."$'\n\n'
     else
       CONTEXT+="No type errors detected."$'\n\n'
     fi
@@ -204,8 +315,8 @@ if [ -f "$CLAUDE_PROJECT_DIR/package.json" ] && command -v pnpm &> /dev/null; th
 
   if [ "$LINT_ERRORS" != "0" ] && [ "$LINT_ERRORS" != "" ]; then
     CONTEXT+="### 🔴 Linting Status (MANDATORY CHECK)"$'\n'
-    if [ "$CHECK_MODE" = "modified" ]; then
-      CONTEXT+="❌ Issues found in $FILE_COUNT modified file(s)"$'\n'
+    if [ "$CHECK_MODE" = "smart" ]; then
+      CONTEXT+="❌ Issues found in $FILE_COUNT relevant file(s)"$'\n'
     else
       CONTEXT+="❌ Linting issues found (full project check)"$'\n'
     fi
@@ -218,15 +329,15 @@ if [ -f "$CLAUDE_PROJECT_DIR/package.json" ] && command -v pnpm &> /dev/null; th
     CONTEXT+="**Action required:** Fix linting errors before committing."$'\n\n'
   elif [ "$LINT_WARNINGS" != "0" ] && [ "$LINT_WARNINGS" != "" ]; then
     CONTEXT+="### ⚠️  Linting Status"$'\n'
-    if [ "$CHECK_MODE" = "modified" ]; then
-      CONTEXT+="$LINT_WARNINGS warning(s) in modified files. Run \`pnpm lint\` to review."$'\n\n'
+    if [ "$CHECK_MODE" = "smart" ]; then
+      CONTEXT+="$LINT_WARNINGS warning(s) in relevant files. Run \`pnpm lint\` to review."$'\n\n'
     else
       CONTEXT+="$LINT_WARNINGS warning(s) detected. Run \`pnpm lint\` to review."$'\n\n'
     fi
   else
     CONTEXT+="### ✅ Linting Status"$'\n'
-    if [ "$CHECK_MODE" = "modified" ]; then
-      CONTEXT+="No linting issues in $FILE_COUNT modified file(s)."$'\n\n'
+    if [ "$CHECK_MODE" = "smart" ]; then
+      CONTEXT+="No linting issues in $FILE_COUNT relevant file(s)."$'\n\n'
     else
       CONTEXT+="No linting errors or warnings detected."$'\n\n'
     fi
