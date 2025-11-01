@@ -7,6 +7,7 @@ export interface GeneratedPortrait {
   imageUrl: string
   prompt: string
   timestamp: number
+  isFavorite?: boolean
 }
 
 export interface GameState {

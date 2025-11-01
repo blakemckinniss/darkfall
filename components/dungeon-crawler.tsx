@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect, useRef, useMemo } from "react"
+import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -169,6 +169,7 @@ export function DungeonCrawler() {
   const [isGeneratingPortrait, setIsGeneratingPortrait] = useState(false)
   const [portraitPrompt, setPortraitPrompt] = useState("Dark Wizard Witch")
   const [generatedPortraits, setGeneratedPortraits] = useState<GeneratedPortrait[]>([])
+  const [currentPortraitIndex, setCurrentPortraitIndex] = useState(0)
 
   const [itemPrompt, setItemPrompt] = useState("")
   const [isGeneratingItem, setIsGeneratingItem] = useState(false)
@@ -328,20 +329,17 @@ export function DungeonCrawler() {
 
     return (
       <>
-        {parts.map((part, index) =>
-          part.toLowerCase() === query.toLowerCase() ? (
-            <mark
-              // eslint-disable-next-line react/no-array-index-key
-              key={`${part}-${index}-match`}
-              className="bg-yellow-500/30 text-yellow-200"
-            >
+        {parts.map((part, index) => {
+          // Generate stable key using part content and position in the full text
+          const stableKey = `${part.slice(0, 20)}-${index}-${part.length}`
+          return part.toLowerCase() === query.toLowerCase() ? (
+            <mark key={`match-${stableKey}`} className="bg-yellow-500/30 text-yellow-200">
               {part}
             </mark>
           ) : (
-            // eslint-disable-next-line react/no-array-index-key
-            <span key={`${part}-${index}-text`}>{part}</span>
+            <span key={`text-${stableKey}`}>{part}</span>
           )
-        )}
+        })}
       </>
     )
   }
@@ -1219,6 +1217,86 @@ export function DungeonCrawler() {
     }
   }
 
+  const handleDeletePortrait = (portraitId: string) => {
+    const portrait = generatedPortraits.find((p) => p.id === portraitId)
+    if (portrait && playerPortrait === portrait.imageUrl) {
+      setPlayerPortrait(null)
+    }
+    setGeneratedPortraits((prev) => {
+      const newPortraits = prev.filter((p) => p.id !== portraitId)
+      // Adjust carousel index if needed
+      if (currentPortraitIndex >= newPortraits.length && newPortraits.length > 0) {
+        setCurrentPortraitIndex(newPortraits.length - 1)
+      } else if (newPortraits.length === 0) {
+        setCurrentPortraitIndex(0)
+      }
+      return newPortraits
+    })
+    addDebugLog("system", `Deleted portrait: ${portrait?.prompt || portraitId}`)
+  }
+
+  const handleToggleFavorite = (portraitId: string) => {
+    setGeneratedPortraits((prev) =>
+      prev.map((p) => (p.id === portraitId ? { ...p, isFavorite: !p.isFavorite } : p))
+    )
+  }
+
+  const handleDownloadPortrait = async (portrait: GeneratedPortrait) => {
+    try {
+      const response = await fetch(portrait.imageUrl)
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = `portrait-${portrait.prompt.replace(/[^a-z0-9]/gi, "-").toLowerCase()}.png`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      addDebugLog("system", `Downloaded portrait: ${portrait.prompt}`)
+    } catch (error) {
+      console.error("[Debug] Failed to download portrait:", error)
+      addDebugLog("error", `Failed to download portrait: ${error}`)
+    }
+  }
+
+  const handleNextPortrait = useCallback(() => {
+    const sortedPortraits = generatedPortraits.sort((a, b) => {
+      if (a.isFavorite && !b.isFavorite) return -1
+      if (!a.isFavorite && b.isFavorite) return 1
+      return b.timestamp - a.timestamp
+    })
+    setCurrentPortraitIndex((prev) => (prev + 1) % sortedPortraits.length)
+  }, [generatedPortraits])
+
+  const handlePrevPortrait = useCallback(() => {
+    const sortedPortraits = generatedPortraits.sort((a, b) => {
+      if (a.isFavorite && !b.isFavorite) return -1
+      if (!a.isFavorite && b.isFavorite) return 1
+      return b.timestamp - a.timestamp
+    })
+    setCurrentPortraitIndex((prev) => (prev - 1 + sortedPortraits.length) % sortedPortraits.length)
+  }, [generatedPortraits])
+
+  // Keyboard navigation for portrait carousel
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle if developer panel is open and AI Tools tab is active
+      if (developerActiveTab !== "ai-tools" || generatedPortraits.length <= 1) return
+
+      if (e.key === "ArrowLeft") {
+        e.preventDefault()
+        handlePrevPortrait()
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault()
+        handleNextPortrait()
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [developerActiveTab, generatedPortraits.length, handlePrevPortrait, handleNextPortrait])
+
   const handleGenerateItem = async () => {
     if (!itemPrompt.trim()) return
 
@@ -1923,110 +2001,285 @@ export function DungeonCrawler() {
                   value="ai-tools"
                   className="flex-1 overflow-y-auto overflow-x-hidden mt-0 min-w-0 w-full hide-scrollbar"
                 >
-                  <div className="flex flex-col gap-6">
-                    {/* AI Item Generator */}
-                    <div className="pb-6 border-b border-border/30">
-                      <div className="text-xs text-muted-foreground uppercase tracking-wider mb-3">
-                        AI Item Generator (Groq)
-                      </div>
-
-                      <div className="flex flex-col gap-3">
-                        <div>
-                          <label className="text-xs text-muted-foreground mb-2 block">
-                            Item Description
-                          </label>
-                          <Input
-                            value={itemPrompt}
-                            onChange={(e) => setItemPrompt(e.target.value)}
-                            placeholder="e.g., a legendary fire sword with high attack"
-                            className="bg-secondary/20 border-border/30 text-foreground"
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && !isGeneratingItem) {
-                                handleGenerateItem()
-                              }
-                            }}
-                          />
+                  {/* 2-Column Layout */}
+                  <div className="grid grid-cols-1 lg:grid-cols-[45%_55%] gap-6 h-full">
+                    {/* Left Column: AI Generators */}
+                    <div className="flex flex-col gap-4">
+                      {/* AI Item Generator */}
+                      <div className="pb-4 border-b border-border/30">
+                        <div className="text-xs text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
+                          <span>🤖</span>
+                          <span>AI Item Generator</span>
                         </div>
 
-                        <Button
-                          onClick={handleGenerateItem}
-                          disabled={isGeneratingItem || !itemPrompt.trim()}
-                          className="bg-accent hover:bg-accent/80 text-background"
-                        >
-                          {isGeneratingItem ? "Generating..." : "Generate Item"}
-                        </Button>
+                        <div className="flex flex-col gap-2.5">
+                          <div>
+                            <label className="text-[10px] text-muted-foreground mb-1.5 block">
+                              Item Description
+                            </label>
+                            <Input
+                              value={itemPrompt}
+                              onChange={(e) => setItemPrompt(e.target.value)}
+                              placeholder="e.g., a legendary fire sword with high attack"
+                              className="bg-secondary/20 border-border/30 text-foreground text-sm h-9"
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && !isGeneratingItem) {
+                                  handleGenerateItem()
+                                }
+                              }}
+                            />
+                          </div>
 
-                        <div className="text-[10px] text-muted-foreground">
-                          Powered by Groq AI. Describe any item and it will be generated with
-                          appropriate stats and rarity.
+                          <Button
+                            onClick={handleGenerateItem}
+                            disabled={isGeneratingItem || !itemPrompt.trim()}
+                            className="bg-accent hover:bg-accent/80 text-background h-9 text-sm"
+                          >
+                            {isGeneratingItem ? "Generating..." : "Generate Item"}
+                          </Button>
+
+                          <div className="text-[10px] text-muted-foreground leading-relaxed">
+                            <span className="text-accent/80 font-medium">Groq AI</span> • Describe
+                            any item and it will be generated with appropriate stats and rarity.
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Portrait Generator */}
+                      <div className="pb-4">
+                        <div className="text-xs text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
+                          <span>🎨</span>
+                          <span>Portrait Generator</span>
+                        </div>
+
+                        <div className="flex flex-col gap-2.5">
+                          <div>
+                            <label className="text-[10px] text-muted-foreground mb-1.5 block">
+                              Character Description
+                            </label>
+                            <Input
+                              value={portraitPrompt}
+                              onChange={(e) => setPortraitPrompt(e.target.value)}
+                              placeholder="e.g., Dark Wizard Witch"
+                              className="bg-secondary/20 border-border/30 text-foreground text-sm h-9"
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && !isGeneratingPortrait) {
+                                  handleGeneratePortrait()
+                                }
+                              }}
+                            />
+                          </div>
+
+                          <Button
+                            onClick={handleGeneratePortrait}
+                            disabled={isGeneratingPortrait}
+                            className="bg-accent hover:bg-accent/80 text-background h-9 text-sm"
+                          >
+                            {isGeneratingPortrait ? "Generating..." : "Generate Portrait"}
+                          </Button>
+
+                          <div className="text-[10px] text-muted-foreground leading-relaxed">
+                            <span className="text-accent/80 font-medium">fal.ai</span> • Creates
+                            fantasy character portraits using Flux AI.
+                          </div>
                         </div>
                       </div>
                     </div>
 
-                    {/* Portrait Generator */}
-                    <div className="pb-6 border-b border-border/30">
-                      <div className="text-xs text-muted-foreground uppercase tracking-wider mb-3">
-                        Portrait Generator (fal.ai)
+                    {/* Right Column: Portrait Gallery */}
+                    <div className="flex flex-col min-h-0">
+                      <div className="text-xs text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <span>🖼️</span>
+                        <span>Portrait Gallery</span>
+                        {generatedPortraits.length > 0 && (
+                          <span className="text-[10px] bg-accent/20 text-accent px-2 py-0.5 rounded-full">
+                            {generatedPortraits.length}
+                          </span>
+                        )}
                       </div>
 
-                      <div className="flex flex-col gap-3">
-                        <div>
-                          <label className="text-xs text-muted-foreground mb-2 block">
-                            Character Description
-                          </label>
-                          <Input
-                            value={portraitPrompt}
-                            onChange={(e) => setPortraitPrompt(e.target.value)}
-                            placeholder="e.g., Dark Wizard Witch"
-                            className="bg-secondary/20 border-border/30 text-foreground"
-                          />
-                        </div>
+                      <div className="flex flex-col">
+                        {generatedPortraits.length > 0 ? (
+                          <>
+                            {/* Carousel Container */}
+                            <div className="relative flex items-start justify-center">
+                              {(() => {
+                                const sortedPortraits = generatedPortraits.sort((a, b) => {
+                                  if (a.isFavorite && !b.isFavorite) return -1
+                                  if (!a.isFavorite && b.isFavorite) return 1
+                                  return b.timestamp - a.timestamp
+                                })
+                                const currentPortrait = sortedPortraits[currentPortraitIndex]
+                                if (!currentPortrait) return null
 
-                        <Button
-                          onClick={handleGeneratePortrait}
-                          disabled={isGeneratingPortrait}
-                          className="bg-accent hover:bg-accent/80 text-background"
-                        >
-                          {isGeneratingPortrait ? "Generating..." : "Generate Portrait"}
-                        </Button>
-                      </div>
-                    </div>
+                                return (
+                                  <div className="w-full max-w-[280px]">
+                                    <div
+                                      className={`group relative rounded overflow-hidden border-2 transition-all ${
+                                        playerPortrait === currentPortrait.imageUrl
+                                          ? "border-accent shadow-lg shadow-accent/20"
+                                          : "border-border/30"
+                                      }`}
+                                    >
+                                      {/* Favorite Badge */}
+                                      {currentPortrait.isFavorite && (
+                                        <div className="absolute top-2 left-2 z-10 bg-amber-500/90 text-white text-xs px-2 py-1 rounded-sm flex items-center gap-1">
+                                          ⭐
+                                        </div>
+                                      )}
 
-                    {/* Portrait Gallery */}
-                    <div>
-                      <div className="text-xs text-muted-foreground uppercase tracking-wider mb-3">
-                        Portrait Gallery
-                      </div>
-                      {generatedPortraits.length > 0 ? (
-                        <div className="grid grid-cols-2 gap-3">
-                          {generatedPortraits.map((portrait) => (
-                            <div
-                              key={portrait.id}
-                              className={`rounded overflow-hidden border-2 cursor-pointer transition-all hover:border-accent/50 ${
-                                playerPortrait === portrait.imageUrl
-                                  ? "border-accent"
-                                  : "border-border/30"
-                              }`}
-                              onClick={() => handleSelectPortrait(portrait.id)}
-                            >
-                              <img
-                                src={portrait.imageUrl || "/placeholder.svg"}
-                                alt={portrait.prompt}
-                                className="w-full h-auto object-cover aspect-[2/3]"
-                              />
-                              <div className="p-2 bg-secondary/30">
-                                <div className="text-[10px] text-muted-foreground truncate">
-                                  {portrait.prompt}
-                                </div>
-                              </div>
+                                      {/* Image Area - Clickable */}
+                                      <div
+                                        className="cursor-pointer hover:opacity-95 transition-opacity"
+                                        onClick={() => handleSelectPortrait(currentPortrait.id)}
+                                      >
+                                        <img
+                                          src={currentPortrait.imageUrl || "/placeholder.svg"}
+                                          alt={currentPortrait.prompt}
+                                          className="w-full h-auto object-cover aspect-[2/3] max-h-[380px]"
+                                        />
+                                      </div>
+
+                                      {/* Info & Actions */}
+                                      <div className="p-2.5 bg-secondary/30">
+                                        <div className="text-[10px] text-muted-foreground mb-1.5 line-clamp-2">
+                                          {currentPortrait.prompt}
+                                        </div>
+                                        {playerPortrait === currentPortrait.imageUrl && (
+                                          <div className="text-[10px] text-accent mb-1.5 flex items-center gap-1">
+                                            <span>✓</span>
+                                            <span>Active</span>
+                                          </div>
+                                        )}
+
+                                        {/* Action Buttons */}
+                                        <div className="flex items-center gap-1.5">
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleToggleFavorite(currentPortrait.id)
+                                            }}
+                                            className={`flex-1 text-[10px] px-2 py-1 rounded transition-colors ${
+                                              currentPortrait.isFavorite
+                                                ? "bg-amber-500/20 text-amber-400 hover:bg-amber-500/30"
+                                                : "bg-secondary/50 text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
+                                            }`}
+                                            title={
+                                              currentPortrait.isFavorite ? "Unfavorite" : "Favorite"
+                                            }
+                                          >
+                                            {currentPortrait.isFavorite ? "⭐" : "☆"}
+                                          </button>
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleDownloadPortrait(currentPortrait)
+                                            }}
+                                            className="px-2 py-1 rounded bg-secondary/50 text-muted-foreground hover:bg-secondary/80 hover:text-foreground transition-colors text-[10px]"
+                                            title="Download"
+                                          >
+                                            ⬇️
+                                          </button>
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleDeletePortrait(currentPortrait.id)
+                                            }}
+                                            className="px-2 py-1 rounded bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-colors text-[10px]"
+                                            title="Delete"
+                                          >
+                                            🗑️
+                                          </button>
+                                        </div>
+                                      </div>
+
+                                      {/* Navigation Arrows */}
+                                      {sortedPortraits.length > 1 && (
+                                        <>
+                                          <button
+                                            onClick={handlePrevPortrait}
+                                            className="absolute left-1 top-1/2 -translate-y-1/2 bg-accent/90 hover:bg-accent text-background rounded-md px-2 py-3 transition-all shadow-lg hover:shadow-xl hover:scale-110"
+                                            title="Previous portrait (←)"
+                                          >
+                                            <svg
+                                              width="12"
+                                              height="12"
+                                              viewBox="0 0 12 12"
+                                              fill="none"
+                                              xmlns="http://www.w3.org/2000/svg"
+                                            >
+                                              <path
+                                                d="M7.5 2L3.5 6L7.5 10"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                              />
+                                            </svg>
+                                          </button>
+                                          <button
+                                            onClick={handleNextPortrait}
+                                            className="absolute right-1 top-1/2 -translate-y-1/2 bg-accent/90 hover:bg-accent text-background rounded-md px-2 py-3 transition-all shadow-lg hover:shadow-xl hover:scale-110"
+                                            title="Next portrait (→)"
+                                          >
+                                            <svg
+                                              width="12"
+                                              height="12"
+                                              viewBox="0 0 12 12"
+                                              fill="none"
+                                              xmlns="http://www.w3.org/2000/svg"
+                                            >
+                                              <path
+                                                d="M4.5 2L8.5 6L4.5 10"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                              />
+                                            </svg>
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              })()}
                             </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-sm text-muted-foreground text-center py-8 bg-secondary/10 rounded border border-border/20">
-                          No portraits generated yet. Generate your first portrait above!
-                        </div>
-                      )}
+
+                            {/* Carousel Dots */}
+                            {generatedPortraits.length > 1 && (
+                              <div className="flex items-center justify-center gap-1.5 mt-3 pb-2">
+                                {generatedPortraits
+                                  .sort((a, b) => {
+                                    if (a.isFavorite && !b.isFavorite) return -1
+                                    if (!a.isFavorite && b.isFavorite) return 1
+                                    return b.timestamp - a.timestamp
+                                  })
+                                  .map((portrait, index) => (
+                                    <button
+                                      key={portrait.id}
+                                      onClick={() => setCurrentPortraitIndex(index)}
+                                      className={`transition-all ${
+                                        index === currentPortraitIndex
+                                          ? "w-6 h-2 bg-accent"
+                                          : "w-2 h-2 bg-muted-foreground/30 hover:bg-muted-foreground/50"
+                                      } rounded-full`}
+                                      title={`Go to portrait ${index + 1}`}
+                                    />
+                                  ))}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <div className="flex items-center justify-center py-8">
+                            <div className="text-sm text-muted-foreground text-center py-8 bg-secondary/10 rounded border border-border/20 max-w-[280px] w-full">
+                              <div className="text-3xl mb-2 opacity-30">🎨</div>
+                              <div className="text-xs">No portraits yet</div>
+                              <div className="text-[10px] mt-1 opacity-70">Generate above</div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </TabsContent>

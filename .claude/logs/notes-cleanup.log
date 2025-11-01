@@ -1,0 +1,26 @@
+[2025-11-01 10:34:54] Starting NOTES.md cleanup analysis
+[2025-11-01 10:34:54] Found 3 critical items to analyze
+[2025-11-01 10:34:54] Calling Claude CLI for analysis (timeout: 120s)
+[2025-11-01 10:34:59] Another instance is running, exiting
+[2025-11-01 10:35:10] Claude CLI failed with exit code 1
+[2025-11-01 10:35:34] Starting NOTES.md cleanup analysis
+[2025-11-01 10:35:34] Found 3 critical items to analyze
+[2025-11-01 10:35:34] Calling Claude CLI for analysis (timeout: 120s)
+[2025-11-01 10:35:38] Another instance is running, exiting
+[2025-11-01 10:35:40] Claude CLI failed with exit code 1
+[2025-11-01 10:37:18] Starting NOTES.md cleanup analysis
+[2025-11-01 10:37:18] Found 6 critical items to analyze
+[2025-11-01 10:37:18] Calling Claude CLI for analysis (timeout: 120s)
+[2025-11-01 10:37:23] Another instance is running, exiting
+[2025-11-01 10:37:25] Claude CLI failed with exit code 1
+[2025-11-01 10:37:25] Error output: Error: Input must be provided either through stdin or as a prompt argument when using --print
+[2025-11-01 10:39:44] Starting NOTES.md cleanup analysis
+[2025-11-01 10:39:44] Found 6 critical items to analyze
+[2025-11-01 10:39:44] Calling Claude CLI for analysis (timeout: 120s)
+[2025-11-01 10:39:48] Another instance is running, exiting
+[2025-11-01 10:39:50] Claude CLI failed with exit code 1
+[2025-11-01 10:39:50] Error output: Error: Input must be provided either through stdin or as a prompt argument when using --print
+[2025-11-01 10:42:12] Starting NOTES.md cleanup analysis
+[2025-11-01 10:42:12] Found 6 critical items to analyze
+[2025-11-01 10:42:12] Calling Codex CLI for analysis (timeout: 120s)
+[2025-11-01 10:44:16] Codex CLI timed out after 120s

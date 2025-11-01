@@ -16,7 +16,13 @@
     "pnpm",
     "blackfell",
     "dungeon",
-    "fal"
+    "fal",
+    "pipenv",
+    "venv",
+    "websearch",
+    "thinkdeep",
+    "codereview",
+    "secaudit"
   ],
   "ignorePaths": [
     "node_modules",
