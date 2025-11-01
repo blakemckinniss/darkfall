@@ -84,6 +84,11 @@ fi
 if [ "$TOOL_NAME" = "Bash" ]; then
   COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // ""')
 
+  # Skip git commands (commit messages often reference .md files)
+  if echo "$COMMAND" | grep -qE '^\s*git\s'; then
+    exit 0
+  fi
+
   # Check for common file creation patterns with .md extension
   # Matches: touch *.md, echo > *.md, cat > *.md, cp *.md, mv *.md, etc.
   if echo "$COMMAND" | grep -qE '\.md(\s|$|;|\||&)'; then
