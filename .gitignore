@@ -37,3 +37,6 @@ coverage/
 
 # analysis reports
 bundle-analysis-report.json
+
+# backup files
+*.backup

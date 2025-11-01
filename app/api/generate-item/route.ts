@@ -40,7 +40,7 @@ Guidelines:
 - Potions and treasures don't need stats`
 
     const { text } = await generateText({
-      model: groq("mixtral-8x7b-32768"),
+      model: groq("llama-3.3-70b-versatile"),
       system: systemPrompt,
       prompt: prompt,
       temperature: 0.8,
