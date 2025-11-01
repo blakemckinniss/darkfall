@@ -209,13 +209,27 @@ export function DungeonCrawler() {
     return []
   })
   const debugLogRef = useRef<HTMLDivElement>(null)
-  const [debugLogFilters, setDebugLogFilters] = useState<Set<DebugLogEntry["type"]>>(
-    new Set(["system", "state", "game", "ai", "error"])
-  )
+  const [debugLogFilters, setDebugLogFilters] = useState<Set<DebugLogEntry["type"]>>(() => {
+    // Load persisted filters from localStorage
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("debugLogFilters")
+        if (saved) {
+          const parsed = JSON.parse(saved) as string[]
+          return new Set(parsed as DebugLogEntry["type"][])
+        }
+      } catch (error) {
+        console.error("[Debug] Failed to load persisted filters:", error)
+      }
+    }
+    return new Set(["system", "state", "game", "ai", "error"])
+  })
   const [debugLogSearchQuery, setDebugLogSearchQuery] = useState("")
   const [debugTimestampFormat, setDebugTimestampFormat] = useState<"absolute" | "relative">(
     "absolute"
   )
+  const [expandedLogData, setExpandedLogData] = useState<Set<string>>(new Set())
+  const [, setRefreshTimestamp] = useState(Date.now())
 
   // Helper function to add debug logs
   const addDebugLog = (type: DebugLogEntry["type"], message: string, data?: unknown) => {
@@ -288,6 +302,70 @@ export function DungeonCrawler() {
     if (minutes < 60) return `${minutes}m ago`
     if (hours < 24) return `${hours}h ago`
     return `${days}d ago`
+  }
+
+  // Helper to copy log to clipboard
+  const copyLogToClipboard = (log: DebugLogEntry) => {
+    const time = new Date(log.timestamp).toISOString()
+    const dataStr = log.data ? `\n${JSON.stringify(log.data, null, 2)}` : ""
+    const text = `[${time}] [${log.type.toUpperCase()}] ${log.message}${dataStr}`
+
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        addDebugLog("system", `Copied log to clipboard: ${log.message.substring(0, 50)}...`)
+      })
+      .catch((error) => {
+        console.error("[Debug] Failed to copy to clipboard:", error)
+      })
+  }
+
+  // Helper to highlight search matches in text
+  const highlightSearchMatch = (text: string, query: string): React.ReactNode => {
+    if (!query) return text
+
+    const parts = text.split(new RegExp(`(${query})`, "gi"))
+
+    return (
+      <>
+        {parts.map((part, index) =>
+          part.toLowerCase() === query.toLowerCase() ? (
+            <mark
+              // eslint-disable-next-line react/no-array-index-key
+              key={`${part}-${index}-match`}
+              className="bg-yellow-500/30 text-yellow-200"
+            >
+              {part}
+            </mark>
+          ) : (
+            // eslint-disable-next-line react/no-array-index-key
+            <span key={`${part}-${index}-text`}>{part}</span>
+          )
+        )}
+      </>
+    )
+  }
+
+  // Helper to toggle expanded data for a log entry
+  const toggleLogDataExpanded = (logId: string) => {
+    setExpandedLogData((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(logId)) {
+        newSet.delete(logId)
+      } else {
+        newSet.add(logId)
+      }
+      return newSet
+    })
+  }
+
+  // Helper to get severity badge emoji
+  const getSeverityBadge = (type: DebugLogEntry["type"]): string => {
+    if (type === "error") return "🔴"
+    if (type === "ai") return "🟣"
+    if (type === "state") return "🔵"
+    if (type === "game") return "🟢"
+    return "🟡"
   }
 
   // Performance optimization: ref for debounced save timeout
@@ -365,6 +443,27 @@ export function DungeonCrawler() {
 
     return () => clearTimeout(timeoutId)
   }, [debugLogs])
+
+  // Persist debug log filters to localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("debugLogFilters", JSON.stringify(Array.from(debugLogFilters)))
+      } catch (error) {
+        console.error("[Debug] Failed to persist filters:", error)
+      }
+    }
+  }, [debugLogFilters])
+
+  // Auto-refresh relative timestamps every second
+  useEffect(() => {
+    if (debugTimestampFormat === "relative") {
+      const interval = setInterval(() => {
+        setRefreshTimestamp(Date.now())
+      }, 1000)
+      return () => clearInterval(interval)
+    }
+  }, [debugTimestampFormat])
 
   // Auto-scroll debug logs
   useEffect(() => {
@@ -905,7 +1004,7 @@ export function DungeonCrawler() {
     const entityGlow = getEntityGlow(entityData as unknown as { tags?: string[]; rarity?: string })
 
     return (
-      <div className="my-3 p-4 bg-secondary/30 rounded border border-accent/30 animate-in fade-in duration-300">
+      <div className="my-3 p-4 bg-secondary/30 rounded border border-accent/30 animate-in fade-in duration-300 shadow-lg shadow-accent/5">
         <div className={`text-sm mb-2 ${getRarityColor(entityData.rarity, true)} ${entityGlow}`}>
           {entityData.name}
         </div>
@@ -1252,11 +1351,49 @@ export function DungeonCrawler() {
     refreshEntityStats()
   }
 
+  // Determine mood color based on recent events
+  const getMoodOverlay = () => {
+    const lastEntry = logEntries[logEntries.length - 1]
+    if (!lastEntry) return "bg-transparent"
+
+    // Enemy encounters: slight red tint
+    if (
+      lastEntry.entity?.toLowerCase().includes("enemy") ||
+      lastEntry.text.toLowerCase().includes("attack")
+    ) {
+      return "bg-red-500/3"
+    }
+    // Treasure/loot: warm gold tint
+    if (
+      lastEntry.entity?.toLowerCase().includes("treasure") ||
+      lastEntry.entity?.toLowerCase().includes("chest")
+    ) {
+      return "bg-amber-500/3"
+    }
+    // Void location: purple tint
+    if (activeLocation === "void") {
+      return "bg-purple-500/3"
+    }
+    // Default: neutral
+    return "bg-transparent"
+  }
+
   return (
-    <div className="h-screen w-screen bg-background text-foreground flex items-center justify-center p-6">
+    <div className="h-screen w-screen bg-background text-foreground flex items-center justify-center p-6 relative">
+      {/* Vignette effect overlay */}
+      <div className="fixed inset-0 pointer-events-none bg-gradient-radial from-transparent via-transparent to-background/40" />
+
+      {/* Mood-based color overlay */}
+      <div
+        className={`fixed inset-0 pointer-events-none transition-colors duration-1000 ${getMoodOverlay()}`}
+      />
+
       <FloatingNumberContainer />
       <LootAnimationContainer />
-      <div className="fixed top-6 left-6 text-2xl font-light tracking-wider text-accent font-inter">
+      <div
+        className="fixed top-6 left-6 text-2xl font-light tracking-wider text-accent font-inter"
+        style={{ textShadow: "0 2px 8px rgba(0,0,0,0.3)" }}
+      >
         BLACKFELL
       </div>
 
@@ -1489,7 +1626,7 @@ export function DungeonCrawler() {
                 </div>
 
                 <div
-                  className="p-4 bg-secondary/20 rounded border border-border/30 hover:border-accent/50 transition-all cursor-pointer"
+                  className="p-4 bg-secondary/20 rounded border border-border/30 hover:border-accent/50 hover:scale-[1.02] hover:shadow-lg hover:shadow-accent/5 active:scale-[0.98] transition-all duration-300 cursor-pointer shadow-md"
                   onClick={handleEnterVoid}
                 >
                   <div className="flex items-start justify-between">
@@ -1506,7 +1643,7 @@ export function DungeonCrawler() {
                 {openLocations.map((location) => (
                   <div
                     key={location.id}
-                    className="p-4 bg-secondary/20 rounded border border-border/30 hover:border-accent/50 transition-all cursor-pointer"
+                    className="p-4 bg-secondary/20 rounded border border-border/30 hover:border-accent/50 hover:scale-[1.02] hover:shadow-lg hover:shadow-accent/5 active:scale-[0.98] transition-all duration-300 cursor-pointer shadow-md"
                     onClick={() => handleEnterLocation(location.id)}
                   >
                     <div className="flex items-start justify-between">
@@ -2207,21 +2344,46 @@ export function DungeonCrawler() {
                                       : log.type === "game"
                                         ? "text-green-400"
                                         : "text-amber-400"
+                              const isExpanded = expandedLogData.has(log.id)
+                              const severityBadge = getSeverityBadge(log.type)
 
                               return (
                                 <div
                                   key={log.id}
-                                  className="hover:bg-secondary/20 px-1 rounded transition-colors"
+                                  className="group hover:bg-secondary/20 px-1 rounded transition-colors relative"
                                 >
-                                  <span className="text-muted-foreground">[{time}]</span>
-                                  <span className={`ml-2 ${typeColor} uppercase font-semibold`}>
-                                    [{log.type}]
-                                  </span>
-                                  <span className="ml-2 text-foreground">{log.message}</span>
+                                  <div className="flex items-start gap-1">
+                                    <span className="text-muted-foreground text-[10px]">
+                                      [{time}]
+                                    </span>
+                                    <span className={`${typeColor} text-[11px]`} title={log.type}>
+                                      {severityBadge}
+                                    </span>
+                                    <span className="flex-1 text-foreground text-[10px]">
+                                      {highlightSearchMatch(log.message, debugLogSearchQuery)}
+                                    </span>
+                                    <button
+                                      onClick={() => copyLogToClipboard(log)}
+                                      className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] px-1 hover:text-accent"
+                                      title="Copy to clipboard"
+                                    >
+                                      📋
+                                    </button>
+                                  </div>
                                   {log.data !== undefined && (
-                                    <pre className="ml-8 text-muted-foreground text-[9px] mt-0.5 whitespace-pre-wrap break-all">
-                                      {JSON.stringify(log.data, null, 2)}
-                                    </pre>
+                                    <div className="ml-6 mt-0.5">
+                                      <button
+                                        onClick={() => toggleLogDataExpanded(log.id)}
+                                        className="text-[9px] text-muted-foreground hover:text-foreground transition-colors"
+                                      >
+                                        {isExpanded ? "▼ Hide data" : "▶ Show data"}
+                                      </button>
+                                      {isExpanded && (
+                                        <pre className="mt-1 text-muted-foreground text-[9px] whitespace-pre-wrap break-all bg-black/20 p-2 rounded border border-border/20">
+                                          {JSON.stringify(log.data, null, 2)}
+                                        </pre>
+                                      )}
+                                    </div>
                                   )}
                                 </div>
                               )
