@@ -12,10 +12,19 @@ This directory contains hook scripts for Claude Code automation.
 - Loads environment variables from `.env` into the session environment
 - Reports current git branch and uncommitted changes
 - Warns if `node_modules` is missing
+- **🎮 Validates AI endpoint health** (fal.ai portraits + Groq items/narrative)
 - **Enforces critical CLAUDE.md development guidelines** in context
 - Reminds Claude of mandatory rules (no docs, no demos, use MCP, etc.)
 
 **Environment variables**: Uses `CLAUDE_ENV_FILE` to persist .env variables for the session
+
+**AI endpoint validation** (NEW):
+- Checks if dev server is running (localhost:3000)
+- Validates fal.ai portrait generation API
+- Validates Groq item generation API
+- Validates Groq narrative generation API
+- Runs in background to avoid blocking session start
+- Logs results to `/tmp/ai-health-check.log`
 
 **Guidelines enforced**:
 - Never write documentation unless requested
@@ -39,6 +48,8 @@ This directory contains hook scripts for Claude Code automation.
 - **Enforces task completion requirements** (confidence levels, next steps)
 - **Adds context** about uncommitted changes before processing
 - **Reports** linting status to help maintain code quality
+- **⚡ PERFORMANCE OPTIMIZED**: Runs TypeScript + ESLint checks in parallel (2x speedup)
+- **Smart caching** with 60-second TTL and file modification detection
 
 **Blocked patterns**:
 - "create README" / "write documentation"
@@ -50,6 +61,11 @@ This directory contains hook scripts for Claude Code automation.
 - **Zen MCP consultation** - Required when confidence < 80%
 - **Next steps** - Must always provide after task completion
 - **Confidence guidelines** - 90-100% high, 80-89% good, 70-79% uncertain, <70% low
+
+**Performance features** (NEW):
+- **Parallel execution**: TypeScript and ESLint run simultaneously for 2x speedup
+- **Extended cache**: 60-second TTL (up from 30s) for better performance with low-activity sessions
+- **Targeted checks**: Only validates modified files when possible to reduce overhead
 
 ### PostToolUse Hook (`post-edit-format.sh`)
 

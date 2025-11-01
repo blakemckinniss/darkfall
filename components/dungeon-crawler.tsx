@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AnimatedNumber } from "@/components/animated-number"
+import { FloatingNumberContainer } from "@/components/floating-number"
+import { LootAnimationContainer } from "@/components/loot-animation"
 import { Input } from "@/components/ui/input"
 import {
   generateEvent,
@@ -19,6 +21,7 @@ import {
 import { saveGameState, loadGameState, type GeneratedPortrait } from "@/lib/game-state"
 import type { Rarity, Stats } from "@/lib/types"
 import { ENTITIES, RARITY_COLORS, type EntityType } from "@/lib/entities"
+import type { DamageSource } from "@/lib/animations"
 
 interface LogEntry {
   id: string
@@ -190,7 +193,21 @@ export function DungeonCrawler() {
     message: string
     data?: unknown
   }
-  const [debugLogs, setDebugLogs] = useState<DebugLogEntry[]>([])
+  const [debugLogs, setDebugLogs] = useState<DebugLogEntry[]>(() => {
+    // Load persisted logs from localStorage (max 100 entries)
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("debugLogs")
+        if (saved) {
+          const parsed = JSON.parse(saved) as DebugLogEntry[]
+          return parsed.slice(-100) // Keep only last 100
+        }
+      } catch (error) {
+        console.error("[Debug] Failed to load persisted logs:", error)
+      }
+    }
+    return []
+  })
   const debugLogRef = useRef<HTMLDivElement>(null)
   const [debugLogFilters, setDebugLogFilters] = useState<Set<DebugLogEntry["type"]>>(
     new Set(["system", "state", "game", "ai", "error"])
@@ -301,6 +318,21 @@ export function DungeonCrawler() {
       localStorage.setItem("developerActiveTab", developerActiveTab)
     }
   }, [developerActiveTab])
+
+  // Persist debug logs to localStorage (debounced to avoid excessive writes)
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (typeof window !== "undefined" && debugLogs.length > 0) {
+        try {
+          localStorage.setItem("debugLogs", JSON.stringify(debugLogs.slice(-100)))
+        } catch (error) {
+          console.error("[Debug] Failed to persist logs:", error)
+        }
+      }
+    }, 500) // Debounce 500ms
+
+    return () => clearTimeout(timeoutId)
+  }, [debugLogs])
 
   // Auto-scroll debug logs
   useEffect(() => {
@@ -513,6 +545,21 @@ export function DungeonCrawler() {
     const newStats = { ...baseStats }
     let newInventory = [...inventory]
 
+    // Helper to determine damage source based on event context
+    const getDamageSourceFromEvent = (): DamageSource => {
+      if (currentEvent.entity === "enemy" || currentEvent.entityData?.type === "enemy") {
+        return "enemy"
+      }
+      if (
+        currentEvent.entity === "location" ||
+        currentEvent.entityData?.type === "location" ||
+        activeLocation
+      ) {
+        return "environment"
+      }
+      return "self"
+    }
+
     if (outcome.healthChange) {
       newStats.health = Math.max(
         0,
@@ -522,6 +569,12 @@ export function DungeonCrawler() {
         "game",
         `Health changed: ${outcome.healthChange > 0 ? "+" : ""}${outcome.healthChange} (${newStats.health}/${playerStats.maxHealth})`
       )
+
+      // Show floating number with directional animation
+      const damageSource: DamageSource =
+        outcome.healthChange > 0 ? "heal" : getDamageSourceFromEvent()
+      // @ts-expect-error - Global function added by FloatingNumberContainer
+      window.showFloatingNumber?.(outcome.healthChange, damageSource)
     }
     if (outcome.goldChange) {
       newStats.gold = Math.max(0, newStats.gold + outcome.goldChange)
@@ -550,6 +603,13 @@ export function DungeonCrawler() {
       newInventory.push(outcome.itemGained)
       addLogEntry(`Gained: ${outcome.itemGained.name}`, "item")
       addDebugLog("game", `Item gained: ${outcome.itemGained.name} (${outcome.itemGained.rarity})`)
+
+      // Trigger loot drop animation based on rarity
+      // @ts-expect-error - Global function for animations
+      if (window.triggerLootAnimation) {
+        // @ts-expect-error - Global function
+        window.triggerLootAnimation(outcome.itemGained)
+      }
     }
     if (outcome.itemLost) {
       newInventory = newInventory.filter((item) => item.id !== outcome.itemLost)
@@ -565,18 +625,26 @@ export function DungeonCrawler() {
     setTimeout(async () => {
       if (activeLocation === "void") {
         // Generate AI narrative for The Void
+        addDebugLog("ai", "Requesting AI narrative generation for The Void")
+        const startTime = performance.now()
         try {
           const response = await fetch("/api/generate-narrative", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ playerStats: newStats }),
           })
+          const duration = Math.round(performance.now() - startTime)
 
           if (!response.ok) {
+            addDebugLog(
+              "error",
+              `API /api/generate-narrative failed: ${response.status} ${response.statusText} (${duration}ms)`
+            )
             throw new Error("Failed to generate narrative")
           }
 
           const { event } = await response.json()
+          addDebugLog("ai", `Narrative generated: ${event.entity} encounter [${duration}ms]`, event)
           setCurrentEvent(event)
           addLogEntry(
             event.description,
@@ -586,6 +654,8 @@ export function DungeonCrawler() {
             event.entityData
           )
         } catch (error) {
+          const duration = Math.round(performance.now() - startTime)
+          addDebugLog("error", `Failed to generate narrative after ${duration}ms: ${error}`)
           console.error("Error generating void narrative:", error)
           // Fallback to static event
           const fallbackEvent = generateEvent(newStats, newInventory)
@@ -671,18 +741,30 @@ export function DungeonCrawler() {
     setActiveLocation("void")
     setActiveTab("void")
 
+    addDebugLog("ai", "Entering The Void - requesting initial AI narrative")
+    const startTime = performance.now()
     try {
       const response = await fetch("/api/generate-narrative", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ playerStats }),
       })
+      const duration = Math.round(performance.now() - startTime)
 
       if (!response.ok) {
+        addDebugLog(
+          "error",
+          `API /api/generate-narrative failed: ${response.status} ${response.statusText} (${duration}ms)`
+        )
         throw new Error("Failed to generate narrative")
       }
 
       const { event } = await response.json()
+      addDebugLog(
+        "ai",
+        `Initial Void narrative generated: ${event.entity} encounter [${duration}ms]`,
+        event
+      )
       setCurrentEvent(event)
       addLogEntry(
         event.description,
@@ -692,6 +774,11 @@ export function DungeonCrawler() {
         event.entityData
       )
     } catch (error) {
+      const duration = Math.round(performance.now() - startTime)
+      addDebugLog(
+        "error",
+        `Failed to generate initial Void narrative after ${duration}ms: ${error}`
+      )
       console.error("Error generating void narrative:", error)
       // Fallback to static event
       const fallbackEvent = generateEvent(playerStats, inventory)
@@ -951,6 +1038,8 @@ export function DungeonCrawler() {
 
   const handleGeneratePortrait = async () => {
     setIsGeneratingPortrait(true)
+    addDebugLog("ai", `Requesting portrait generation: "${portraitPrompt}"`)
+    const startTime = performance.now()
     try {
       const response = await fetch("/api/generate-portrait", {
         method: "POST",
@@ -959,6 +1048,16 @@ export function DungeonCrawler() {
           prompt: `${portraitPrompt}, fantasy portrait, detailed face, mystical atmosphere`,
         }),
       })
+      const duration = Math.round(performance.now() - startTime)
+
+      if (!response.ok) {
+        addDebugLog(
+          "error",
+          `API /api/generate-portrait failed: ${response.status} ${response.statusText} (${duration}ms)`
+        )
+        throw new Error("Failed to generate portrait")
+      }
+
       const result = await response.json()
 
       if (result.imageUrl) {
@@ -970,11 +1069,14 @@ export function DungeonCrawler() {
         }
         setGeneratedPortraits((prev) => [newPortrait, ...prev])
         setPlayerPortrait(result.imageUrl)
+        addDebugLog("ai", `Portrait generated successfully [${duration}ms]`)
         console.log("[v0] Portrait generated and added to gallery:", newPortrait)
         console.log("[v0] Total portraits in gallery:", generatedPortraits.length + 1)
       }
     } catch (error) {
+      const duration = Math.round(performance.now() - startTime)
       console.error("[v0] Failed to generate portrait:", error)
+      addDebugLog("error", `Failed to generate portrait after ${duration}ms: ${error}`)
     }
     setIsGeneratingPortrait(false)
   }
@@ -991,6 +1093,7 @@ export function DungeonCrawler() {
 
     setIsGeneratingItem(true)
     addDebugLog("ai", `Requesting item generation: "${itemPrompt}"`)
+    const startTime = performance.now()
     try {
       console.log("[v0] Generating item with prompt:", itemPrompt)
       const response = await fetch("/api/generate-item", {
@@ -998,14 +1101,19 @@ export function DungeonCrawler() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: itemPrompt }),
       })
+      const duration = Math.round(performance.now() - startTime)
 
       if (!response.ok) {
+        addDebugLog(
+          "error",
+          `API /api/generate-item failed: ${response.status} ${response.statusText} (${duration}ms)`
+        )
         throw new Error("Failed to generate item")
       }
 
       const { item } = await response.json()
       console.log("[v0] Item generated:", item)
-      addDebugLog("ai", `Item generated: ${item.name} (${item.rarity})`, item)
+      addDebugLog("ai", `Item generated: ${item.name} (${item.rarity}) [${duration}ms]`, item)
 
       // Add the generated item to inventory
       setInventory((prev) => [...prev, item])
@@ -1014,8 +1122,9 @@ export function DungeonCrawler() {
       // Clear the prompt
       setItemPrompt("")
     } catch (error) {
+      const duration = Math.round(performance.now() - startTime)
       console.error("[v0] Failed to generate item:", error)
-      addDebugLog("error", `Failed to generate item: ${error}`)
+      addDebugLog("error", `Failed to generate item after ${duration}ms: ${error}`)
       addLogEntry("Failed to generate item. Please try again.", "error")
     }
     setIsGeneratingItem(false)
@@ -1113,6 +1222,8 @@ export function DungeonCrawler() {
 
   return (
     <div className="h-screen w-screen bg-background text-foreground flex items-center justify-center p-6">
+      <FloatingNumberContainer />
+      <LootAnimationContainer />
       <div className="fixed top-6 left-6 text-2xl font-light tracking-wider text-accent font-inter">
         BLACKFELL
       </div>

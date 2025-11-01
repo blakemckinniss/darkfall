@@ -78,8 +78,9 @@
 
 @theme inline {
   /* Updated font stack to include emoji support and proper fallbacks */
-  --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
-    "Segoe UI Symbol", "Noto Color Emoji";
+  --font-sans:
+    "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   --font-mono: "Geist Mono", "Geist Mono Fallback", monospace;
   /* Adding Inter font for logo */
   --font-inter: var(--font-inter), "Inter", "Inter Fallback", system-ui, sans-serif;
@@ -189,12 +190,16 @@
 }
 
 .stat-glow-green {
-  text-shadow: 0 0 8px rgba(34, 197, 94, 0.3), 0 0 12px rgba(34, 197, 94, 0.15);
+  text-shadow:
+    0 0 8px rgba(34, 197, 94, 0.3),
+    0 0 12px rgba(34, 197, 94, 0.15);
   animation: stat-pulse 2.5s ease-in-out infinite;
 }
 
 .stat-glow-red {
-  text-shadow: 0 0 8px rgba(239, 68, 68, 0.3), 0 0 12px rgba(239, 68, 68, 0.15);
+  text-shadow:
+    0 0 8px rgba(239, 68, 68, 0.3),
+    0 0 12px rgba(239, 68, 68, 0.15);
   animation: stat-pulse 2.5s ease-in-out infinite;
 }
 
@@ -206,4 +211,140 @@
 
 .hide-scrollbar::-webkit-scrollbar {
   display: none; /* Chrome, Safari, Opera */
+}
+
+/* Staggered fade-in animation for choice buttons */
+@keyframes stagger-fade-in {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.choice-stagger {
+  opacity: 0;
+  animation: stagger-fade-in 0.3s ease-out forwards;
+}
+
+/* Directional slide animations for damage/healing effects */
+@keyframes slide-from-right {
+  from {
+    opacity: 0;
+    transform: translateX(16px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes slide-from-top {
+  from {
+    opacity: 0;
+    transform: translateY(-16px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes slide-from-left {
+  from {
+    opacity: 0;
+    transform: translateX(-16px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes slide-from-bottom {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Shake animation for critical damage */
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  10%,
+  30%,
+  50%,
+  70%,
+  90% {
+    transform: translateX(-4px);
+  }
+  20%,
+  40%,
+  60%,
+  80% {
+    transform: translateX(4px);
+  }
+}
+
+.animate-shake {
+  animation: shake 0.4s ease-in-out;
+}
+
+/* Subtle pulse for healing effects */
+@keyframes pulse-subtle {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.05);
+  }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 0.6s ease-in-out;
+}
+
+/* Directional slide utility classes */
+.slide-from-right {
+  animation: slide-from-right 0.3s ease-out forwards;
+}
+
+.slide-from-top {
+  animation: slide-from-top 0.3s ease-out forwards;
+}
+
+.slide-from-left {
+  animation: slide-from-left 0.3s ease-out forwards;
+}
+
+.slide-from-bottom {
+  animation: slide-from-bottom 0.3s ease-out forwards;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .choice-stagger,
+  .animate-shake,
+  .animate-pulse-subtle,
+  .slide-from-right,
+  .slide-from-top,
+  .slide-from-left,
+  .slide-from-bottom {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
 }

@@ -36,6 +36,20 @@ if [ -f "$CLAUDE_PROJECT_DIR/package.json" ]; then
   fi
 fi
 
+# AI Endpoint Health Check (game-specific validation)
+AI_HEALTH_SCRIPT="$CLAUDE_PROJECT_DIR/.claude/tests/validate-ai-endpoints.sh"
+if [ -f "$AI_HEALTH_SCRIPT" ] && [ -x "$AI_HEALTH_SCRIPT" ]; then
+  # Check if dev server is running before validating endpoints
+  if curl -s "http://localhost:3000" > /dev/null 2>&1; then
+    CONTEXT+=$'\n## 🎮 AI Endpoint Health Check\n'
+    CONTEXT+="Running validation for fal.ai (portraits) and Groq (items/narrative)..."$'\n'
+    # Run validation in background to avoid blocking session start
+    ("$AI_HEALTH_SCRIPT" > /tmp/ai-health-check.log 2>&1 && \
+      CONTEXT+="✅ AI endpoints validated successfully"$'\n' || \
+      CONTEXT+="⚠️  AI endpoint validation failed (check /tmp/ai-health-check.log)"$'\n') &
+  fi
+fi
+
 # Add critical development guidelines from CLAUDE.md
 CONTEXT+=$'\n## Critical Development Guidelines (CLAUDE.md)\n\n'
 CONTEXT+="**These rules are MANDATORY and enforced:**"$'\n'

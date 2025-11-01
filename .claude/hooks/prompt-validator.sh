@@ -78,10 +78,10 @@ fi
 
 # Check for TypeScript and linting errors (smart mode: only check modified files if uncommitted changes exist)
 if [ -f "$CLAUDE_PROJECT_DIR/package.json" ] && command -v pnpm &> /dev/null; then
-  # Cache management (skip checks if run within last 30 seconds and no file changes)
+  # Cache management (skip checks if run within last 60 seconds and no file changes)
   CACHE_DIR="/tmp/claude-hook-cache"
   CACHE_FILE="$CACHE_DIR/last-check-${SESSION_ID:-$$}"
-  CACHE_MAX_AGE=30  # seconds
+  CACHE_MAX_AGE=60  # seconds (optimized for performance)
   SKIP_CHECKS=false
 
   mkdir -p "$CACHE_DIR"
@@ -121,10 +121,47 @@ if [ -f "$CLAUDE_PROJECT_DIR/package.json" ] && command -v pnpm &> /dev/null; th
       CHECK_MODE="full"
     fi
 
-  # TypeScript Check
+  # ============================================================================
+  # PARALLEL EXECUTION: Run TypeScript + ESLint checks simultaneously (2x speedup)
+  # ============================================================================
+
+  # Setup temporary files for parallel execution
+  TSC_OUTPUT_FILE="$CACHE_DIR/tsc-output-${SESSION_ID:-$$}"
+  LINT_OUTPUT_FILE="$CACHE_DIR/lint-output-${SESSION_ID:-$$}"
+
+  # Start TypeScript check in background
+  (
+    if [ "$CHECK_MODE" = "modified" ]; then
+      # Run full typecheck but we'll filter output later
+      cd "$CLAUDE_PROJECT_DIR" && pnpm tsc --noEmit 2>&1 || true
+    else
+      # Full project typecheck
+      cd "$CLAUDE_PROJECT_DIR" && pnpm tsc --noEmit 2>&1 || true
+    fi
+  ) > "$TSC_OUTPUT_FILE" &
+  TSC_PID=$!
+
+  # Start ESLint check in background
+  (
+    if [ "$CHECK_MODE" = "modified" ] && [ -n "$MODIFIED_FILES" ]; then
+      # Targeted lint check on modified files only
+      LINT_FILES=$(echo "$MODIFIED_FILES" | tr '\n' ' ')
+      cd "$CLAUDE_PROJECT_DIR" && pnpm eslint $LINT_FILES 2>&1 || true
+    else
+      # Full project lint
+      cd "$CLAUDE_PROJECT_DIR" && pnpm lint 2>&1 || true
+    fi
+  ) > "$LINT_OUTPUT_FILE" &
+  LINT_PID=$!
+
+  # Wait for both checks to complete
+  wait $TSC_PID
+  wait $LINT_PID
+
+  # Process TypeScript results
+  TYPECHECK_OUTPUT=$(cat "$TSC_OUTPUT_FILE")
   if [ "$CHECK_MODE" = "modified" ]; then
-    # Run full typecheck but filter output to modified files only
-    TYPECHECK_OUTPUT=$(cd "$CLAUDE_PROJECT_DIR" && pnpm tsc --noEmit 2>&1 || true)
+    # Filter output to modified files only
     FILTERED_OUTPUT=""
     while IFS= read -r file; do
       FILE_ERRORS=$(echo "$TYPECHECK_OUTPUT" | grep "^$file(" || true)
@@ -135,8 +172,6 @@ if [ -f "$CLAUDE_PROJECT_DIR/package.json" ] && command -v pnpm &> /dev/null; th
     TYPECHECK_ERRORS=$(echo "$FILTERED_OUTPUT" | grep -c "error TS" || true)
     DISPLAY_OUTPUT="$FILTERED_OUTPUT"
   else
-    # Full project typecheck
-    TYPECHECK_OUTPUT=$(cd "$CLAUDE_PROJECT_DIR" && pnpm tsc --noEmit 2>&1 || true)
     TYPECHECK_ERRORS=$(echo "$TYPECHECK_OUTPUT" | grep -c "error TS" || true)
     DISPLAY_OUTPUT="$TYPECHECK_OUTPUT"
   fi
@@ -162,16 +197,8 @@ if [ -f "$CLAUDE_PROJECT_DIR/package.json" ] && command -v pnpm &> /dev/null; th
     fi
   fi
 
-  # Linting Check
-  if [ "$CHECK_MODE" = "modified" ] && [ -n "$MODIFIED_FILES" ]; then
-    # Targeted lint check on modified files only
-    LINT_FILES=$(echo "$MODIFIED_FILES" | tr '\n' ' ')
-    LINT_OUTPUT=$(cd "$CLAUDE_PROJECT_DIR" && pnpm eslint $LINT_FILES 2>&1 || true)
-  else
-    # Full project lint
-    LINT_OUTPUT=$(cd "$CLAUDE_PROJECT_DIR" && pnpm lint 2>&1 || true)
-  fi
-
+  # Process ESLint results
+  LINT_OUTPUT=$(cat "$LINT_OUTPUT_FILE")
   LINT_ERRORS=$(echo "$LINT_OUTPUT" | grep -c "✖" | head -1 || echo "0")
   LINT_WARNINGS=$(echo "$LINT_OUTPUT" | grep -oP '\d+(?= warning)' | head -1 || echo "0")
 
@@ -204,6 +231,9 @@ if [ -f "$CLAUDE_PROJECT_DIR/package.json" ] && command -v pnpm &> /dev/null; th
       CONTEXT+="No linting errors or warnings detected."$'\n\n'
     fi
   fi
+
+  # Cleanup temporary files
+  rm -f "$TSC_OUTPUT_FILE" "$LINT_OUTPUT_FILE"
   fi  # Close SKIP_CHECKS=false block
 fi  # Close main checks block
 

@@ -26,9 +26,16 @@ export function AnimatedNumber({ value, className = "", duration = 300 }: Animat
         const elapsed = Date.now() - startTime
         const progress = Math.min(elapsed / duration, 1)
 
-        // Easing function for smooth animation
-        const easeOutQuad = (t: number) => t * (2 - t)
-        const easedProgress = easeOutQuad(progress)
+        // Spring physics easing with bounce effect
+        const easeOutElastic = (t: number) => {
+          const c4 = (2 * Math.PI) / 3
+          return t === 0
+            ? 0
+            : t === 1
+              ? 1
+              : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1
+        }
+        const easedProgress = easeOutElastic(progress)
 
         const currentValue = Math.round(startValue + (endValue - startValue) * easedProgress)
         setDisplayValue(currentValue)
@@ -45,5 +52,9 @@ export function AnimatedNumber({ value, className = "", duration = 300 }: Animat
     }
   }, [value, duration])
 
-  return <span className={`${className} ${isAnimating ? "animate-pulse-subtle" : ""}`}>{displayValue}</span>
+  return (
+    <span className={`${className} ${isAnimating ? "animate-pulse-subtle" : ""}`}>
+      {displayValue}
+    </span>
+  )
 }
