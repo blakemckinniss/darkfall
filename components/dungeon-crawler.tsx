@@ -192,6 +192,9 @@ export function DungeonCrawler() {
   }
   const [debugLogs, setDebugLogs] = useState<DebugLogEntry[]>([])
   const debugLogRef = useRef<HTMLDivElement>(null)
+  const [debugLogFilters, setDebugLogFilters] = useState<Set<DebugLogEntry["type"]>>(
+    new Set(["system", "state", "game", "ai", "error"])
+  )
 
   // Helper function to add debug logs
   const addDebugLog = (type: DebugLogEntry["type"], message: string, data?: unknown) => {
@@ -203,6 +206,39 @@ export function DungeonCrawler() {
       data,
     }
     setDebugLogs((prev) => [...prev.slice(-99), newLog]) // Keep last 100 logs
+  }
+
+  // Helper to toggle log filter
+  const toggleLogFilter = (type: DebugLogEntry["type"]) => {
+    setDebugLogFilters((prev) => {
+      const newFilters = new Set(prev)
+      if (newFilters.has(type)) {
+        newFilters.delete(type)
+      } else {
+        newFilters.add(type)
+      }
+      return newFilters
+    })
+  }
+
+  // Helper to export logs
+  const exportDebugLogs = () => {
+    const logsText = debugLogs
+      .map((log) => {
+        const time = new Date(log.timestamp).toISOString()
+        const dataStr = log.data ? `\n  ${JSON.stringify(log.data, null, 2)}` : ""
+        return `[${time}] [${log.type.toUpperCase()}] ${log.message}${dataStr}`
+      })
+      .join("\n\n")
+
+    const blob = new Blob([logsText], { type: "text/plain" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `debug-logs-${new Date().toISOString().replace(/[:.]/g, "-")}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+    addDebugLog("system", `Exported ${debugLogs.length} logs to file`)
   }
 
   // Performance optimization: ref for debounced save timeout
@@ -445,6 +481,7 @@ export function DungeonCrawler() {
   const handleChoice = (choice: GameEvent["choices"][0]) => {
     if (!currentEvent) return
 
+    addDebugLog("game", `Player chose: "${choice.text}"`)
     setLogEntries([])
 
     if (activeLocation && activeLocation !== "void") {
@@ -481,12 +518,24 @@ export function DungeonCrawler() {
         0,
         Math.min(playerStats.maxHealth, newStats.health + outcome.healthChange)
       )
+      addDebugLog(
+        "game",
+        `Health changed: ${outcome.healthChange > 0 ? "+" : ""}${outcome.healthChange} (${newStats.health}/${playerStats.maxHealth})`
+      )
     }
     if (outcome.goldChange) {
       newStats.gold = Math.max(0, newStats.gold + outcome.goldChange)
+      addDebugLog(
+        "game",
+        `Gold changed: ${outcome.goldChange > 0 ? "+" : ""}${outcome.goldChange} (total: ${newStats.gold})`
+      )
     }
     if (outcome.experienceChange) {
       newStats.experience += outcome.experienceChange
+      addDebugLog(
+        "game",
+        `XP gained: +${outcome.experienceChange} (${newStats.experience}/${newStats.level * 100})`
+      )
       if (newStats.experience >= newStats.level * 100) {
         newStats.level += 1
         newStats.maxHealth += 10
@@ -494,15 +543,18 @@ export function DungeonCrawler() {
         newStats.attack += 2
         newStats.defense += 1
         addLogEntry(`Level up! You are now level ${newStats.level}`, "level")
+        addDebugLog("game", `LEVEL UP! Now level ${newStats.level} (ATK+2, DEF+1, HP+10)`)
       }
     }
     if (outcome.itemGained) {
       newInventory.push(outcome.itemGained)
       addLogEntry(`Gained: ${outcome.itemGained.name}`, "item")
+      addDebugLog("game", `Item gained: ${outcome.itemGained.name} (${outcome.itemGained.rarity})`)
     }
     if (outcome.itemLost) {
       newInventory = newInventory.filter((item) => item.id !== outcome.itemLost)
       addLogEntry(`Lost: ${inventory.find((i) => i.id === outcome.itemLost)?.name}`, "item")
+      addDebugLog("game", `Item lost: ${inventory.find((i) => i.id === outcome.itemLost)?.name}`)
     }
 
     setBaseStats(newStats)
@@ -582,11 +634,13 @@ export function DungeonCrawler() {
     const location = openLocations.find((loc) => loc.id === locationId)
     if (!location) return
 
+    addDebugLog("game", `Entering location: ${location.name} (stability: ${location.stability}%)`)
     setActiveLocation(locationId)
     setActiveTab(locationId)
 
     const firstEvent = generateEvent(playerStats, inventory)
     setCurrentEvent(firstEvent)
+    addDebugLog("game", `Event generated: ${firstEvent.entity || "random encounter"}`)
     addLogEntry(
       firstEvent.description,
       firstEvent.entity,
@@ -806,6 +860,7 @@ export function DungeonCrawler() {
     if (!item.consumableEffect) return
 
     const effect = item.consumableEffect
+    addDebugLog("game", `Using consumable: ${item.name} (${effect.type})`)
 
     if (effect.type === "permanent") {
       setBaseStats((prev) => ({
@@ -815,6 +870,10 @@ export function DungeonCrawler() {
         maxHealth: prev.maxHealth + (effect.statChanges.maxHealth || 0),
       }))
       addLogEntry(`You consumed ${item.name}. Its effects are permanent!`, item.name, item.rarity)
+      addDebugLog(
+        "game",
+        `Permanent effect applied: ATK${(effect.statChanges.attack || 0) > 0 ? "+" : ""}${effect.statChanges.attack || 0}, DEF${(effect.statChanges.defense || 0) > 0 ? "+" : ""}${effect.statChanges.defense || 0}, HP${(effect.statChanges.maxHealth || 0) > 0 ? "+" : ""}${effect.statChanges.maxHealth || 0}`
+      )
     } else if (effect.type === "temporary" && effect.duration) {
       const newEffect: ActiveEffect = {
         id: Math.random().toString(36).substr(2, 9),
@@ -828,6 +887,10 @@ export function DungeonCrawler() {
         `You consumed ${item.name}. Its effects will last for ${effect.duration} seconds!`,
         item.name,
         item.rarity
+      )
+      addDebugLog(
+        "game",
+        `Temporary effect active for ${effect.duration}s: ATK${(effect.statChanges.attack || 0) > 0 ? "+" : ""}${effect.statChanges.attack || 0}, DEF${(effect.statChanges.defense || 0) > 0 ? "+" : ""}${effect.statChanges.defense || 0}`
       )
     }
 
@@ -1859,66 +1922,112 @@ export function DungeonCrawler() {
                   className="flex-1 flex flex-col overflow-hidden mt-0 min-w-0 w-full"
                 >
                   <div className="flex flex-col h-full gap-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
                       <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                        Debug Console ({debugLogs.length}/100 logs)
+                        Debug Console (
+                        {debugLogs.filter((log) => debugLogFilters.has(log.type)).length}/
+                        {debugLogs.length})
                       </div>
-                      <Button
-                        onClick={() => setDebugLogs([])}
-                        variant="outline"
-                        className="h-6 text-[10px] px-2 bg-red-500/10 hover:bg-red-500/20 border-red-500/30 text-red-400"
-                      >
-                        Clear Logs
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={exportDebugLogs}
+                          variant="outline"
+                          disabled={debugLogs.length === 0}
+                          className="h-6 text-[10px] px-2 bg-accent/10 hover:bg-accent/20 border-accent/30 text-accent"
+                        >
+                          Export
+                        </Button>
+                        <Button
+                          onClick={() => setDebugLogs([])}
+                          variant="outline"
+                          className="h-6 text-[10px] px-2 bg-red-500/10 hover:bg-red-500/20 border-red-500/30 text-red-400"
+                        >
+                          Clear
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Log type filters */}
+                    <div className="flex flex-wrap gap-2">
+                      {(["system", "state", "game", "ai", "error"] as const).map((type) => {
+                        const isActive = debugLogFilters.has(type)
+                        const count = debugLogs.filter((log) => log.type === type).length
+                        const color =
+                          type === "error"
+                            ? "text-red-400 border-red-400/30"
+                            : type === "ai"
+                              ? "text-purple-400 border-purple-400/30"
+                              : type === "state"
+                                ? "text-blue-400 border-blue-400/30"
+                                : type === "game"
+                                  ? "text-green-400 border-green-400/30"
+                                  : "text-amber-400 border-amber-400/30"
+
+                        return (
+                          <button
+                            key={type}
+                            onClick={() => toggleLogFilter(type)}
+                            className={`text-[9px] px-2 py-1 rounded border transition-all ${color} ${
+                              isActive ? "bg-current/10 opacity-100" : "opacity-30 hover:opacity-60"
+                            }`}
+                          >
+                            {type.toUpperCase()} ({count})
+                          </button>
+                        )
+                      })}
                     </div>
 
                     <div
                       ref={debugLogRef}
                       className="flex-1 overflow-y-auto bg-black/40 rounded border border-border/30 p-3 font-mono text-[10px] leading-relaxed"
                     >
-                      {debugLogs.length === 0 ? (
+                      {debugLogs.filter((log) => debugLogFilters.has(log.type)).length === 0 ? (
                         <div className="text-muted-foreground text-center py-8">
-                          No debug logs yet. Interact with the game to see events logged here.
+                          {debugLogs.length === 0
+                            ? "No debug logs yet. Interact with the game to see events logged here."
+                            : "No logs match current filters. Enable log types above."}
                         </div>
                       ) : (
                         <div className="flex flex-col gap-1">
-                          {debugLogs.map((log) => {
-                            const time = new Date(log.timestamp).toLocaleTimeString("en-US", {
-                              hour12: false,
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              second: "2-digit",
-                              fractionalSecondDigits: 3,
-                            })
-                            const typeColor =
-                              log.type === "error"
-                                ? "text-red-400"
-                                : log.type === "ai"
-                                  ? "text-purple-400"
-                                  : log.type === "state"
-                                    ? "text-blue-400"
-                                    : log.type === "game"
-                                      ? "text-green-400"
-                                      : "text-amber-400"
+                          {debugLogs
+                            .filter((log) => debugLogFilters.has(log.type))
+                            .map((log) => {
+                              const time = new Date(log.timestamp).toLocaleTimeString("en-US", {
+                                hour12: false,
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                second: "2-digit",
+                                fractionalSecondDigits: 3,
+                              })
+                              const typeColor =
+                                log.type === "error"
+                                  ? "text-red-400"
+                                  : log.type === "ai"
+                                    ? "text-purple-400"
+                                    : log.type === "state"
+                                      ? "text-blue-400"
+                                      : log.type === "game"
+                                        ? "text-green-400"
+                                        : "text-amber-400"
 
-                            return (
-                              <div
-                                key={log.id}
-                                className="hover:bg-secondary/20 px-1 rounded transition-colors"
-                              >
-                                <span className="text-muted-foreground">[{time}]</span>
-                                <span className={`ml-2 ${typeColor} uppercase font-semibold`}>
-                                  [{log.type}]
-                                </span>
-                                <span className="ml-2 text-foreground">{log.message}</span>
-                                {log.data !== undefined && (
-                                  <pre className="ml-8 text-muted-foreground text-[9px] mt-0.5 whitespace-pre-wrap break-all">
-                                    {JSON.stringify(log.data, null, 2)}
-                                  </pre>
-                                )}
-                              </div>
-                            )
-                          })}
+                              return (
+                                <div
+                                  key={log.id}
+                                  className="hover:bg-secondary/20 px-1 rounded transition-colors"
+                                >
+                                  <span className="text-muted-foreground">[{time}]</span>
+                                  <span className={`ml-2 ${typeColor} uppercase font-semibold`}>
+                                    [{log.type}]
+                                  </span>
+                                  <span className="ml-2 text-foreground">{log.message}</span>
+                                  {log.data !== undefined && (
+                                    <pre className="ml-8 text-muted-foreground text-[9px] mt-0.5 whitespace-pre-wrap break-all">
+                                      {JSON.stringify(log.data, null, 2)}
+                                    </pre>
+                                  )}
+                                </div>
+                              )
+                            })}
                         </div>
                       )}
                     </div>
