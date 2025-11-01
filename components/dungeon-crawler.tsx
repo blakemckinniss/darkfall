@@ -174,6 +174,14 @@ export function DungeonCrawler() {
   const [entityStats, setEntityStats] = useState(() => ENTITIES.stats())
   const [expandedEntityType, setExpandedEntityType] = useState<string | null>(null)
 
+  // Developer panel tab state with localStorage persistence
+  const [developerActiveTab, setDeveloperActiveTab] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("developerActiveTab") || "ai-tools"
+    }
+    return "ai-tools"
+  })
+
   // Performance optimization: ref for debounced save timeout
   const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
 
@@ -219,6 +227,13 @@ export function DungeonCrawler() {
     playerPortrait,
     generatedPortraits,
   ])
+
+  // Persist developer tab selection to localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("developerActiveTab", developerActiveTab)
+    }
+  }, [developerActiveTab])
 
   // Force save on tab close/navigation to prevent data loss
   useEffect(() => {
@@ -1486,259 +1501,308 @@ export function DungeonCrawler() {
 
             <TabsContent
               value="developer"
-              className="flex-1 flex flex-col gap-6 overflow-y-auto overflow-x-hidden mt-0 min-w-0 w-full max-w-full hide-scrollbar"
+              className="flex-1 flex flex-col overflow-hidden mt-0 min-w-0 w-full max-w-full"
             >
-              <div className="flex flex-col gap-4 min-w-0 w-full">
-                <div className="pb-6 border-b border-border/30">
-                  <div className="text-xs text-muted-foreground uppercase tracking-wider mb-3">
-                    AI Item Generator (Groq)
-                  </div>
-
-                  <div className="flex flex-col gap-3">
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-2 block">
-                        Item Description
-                      </label>
-                      <Input
-                        value={itemPrompt}
-                        onChange={(e) => setItemPrompt(e.target.value)}
-                        placeholder="e.g., a legendary fire sword with high attack"
-                        className="bg-secondary/20 border-border/30 text-foreground"
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && !isGeneratingItem) {
-                            handleGenerateItem()
-                          }
-                        }}
-                      />
-                    </div>
-
-                    <Button
-                      onClick={handleGenerateItem}
-                      disabled={isGeneratingItem || !itemPrompt.trim()}
-                      className="bg-accent hover:bg-accent/80 text-background"
-                    >
-                      {isGeneratingItem ? "Generating..." : "Generate Item"}
-                    </Button>
-
-                    <div className="text-[10px] text-muted-foreground">
-                      Powered by Groq AI. Describe any item and it will be generated with
-                      appropriate stats and rarity.
-                    </div>
-                  </div>
-                </div>
-
-                <div className="text-xs text-muted-foreground uppercase tracking-wider mb-2">
-                  Portrait Generator
-                </div>
-
-                <div className="flex flex-col gap-3">
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-2 block">
-                      Character Description
-                    </label>
-                    <Input
-                      value={portraitPrompt}
-                      onChange={(e) => setPortraitPrompt(e.target.value)}
-                      placeholder="e.g., Dark Wizard Witch"
-                      className="bg-secondary/20 border-border/30 text-foreground"
-                    />
-                  </div>
-
-                  <Button
-                    onClick={handleGeneratePortrait}
-                    disabled={isGeneratingPortrait}
-                    className="bg-accent hover:bg-accent/80 text-background"
+              <Tabs
+                value={developerActiveTab}
+                onValueChange={setDeveloperActiveTab}
+                className="flex-1 flex flex-col overflow-hidden min-w-0 w-full"
+              >
+                <TabsList className="bg-secondary/20 border border-border/30 p-1 h-auto mb-4 flex-shrink-0 w-full">
+                  <TabsTrigger
+                    value="ai-tools"
+                    className="flex-1 data-[state=active]:bg-accent/20 data-[state=active]:text-accent text-xs py-2 flex items-center justify-center gap-1.5"
                   >
-                    {isGeneratingPortrait ? "Generating..." : "Generate Portrait"}
-                  </Button>
-                </div>
+                    <span className="text-base">🤖</span>
+                    <span>AI Tools</span>
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="entity-registry"
+                    className="flex-1 data-[state=active]:bg-accent/20 data-[state=active]:text-accent text-xs py-2 flex items-center justify-center gap-1.5"
+                  >
+                    <span className="text-base">📊</span>
+                    <span>Entity Registry</span>
+                  </TabsTrigger>
+                </TabsList>
 
-                {generatedPortraits.length > 0 && (
-                  <div className="mt-6">
-                    <div className="text-xs text-muted-foreground uppercase tracking-wider mb-3">
-                      Portrait Gallery
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      {generatedPortraits.map((portrait) => (
-                        <div
-                          key={portrait.id}
-                          className={`rounded overflow-hidden border-2 cursor-pointer transition-all hover:border-accent/50 ${
-                            playerPortrait === portrait.imageUrl
-                              ? "border-accent"
-                              : "border-border/30"
-                          }`}
-                          onClick={() => handleSelectPortrait(portrait.id)}
-                        >
-                          <img
-                            src={portrait.imageUrl || "/placeholder.svg"}
-                            alt={portrait.prompt}
-                            className="w-full h-auto object-cover aspect-[2/3]"
+                {/* AI Tools Tab */}
+                <TabsContent
+                  value="ai-tools"
+                  className="flex-1 overflow-y-auto overflow-x-hidden mt-0 min-w-0 w-full hide-scrollbar"
+                >
+                  <div className="flex flex-col gap-6">
+                    {/* AI Item Generator */}
+                    <div className="pb-6 border-b border-border/30">
+                      <div className="text-xs text-muted-foreground uppercase tracking-wider mb-3">
+                        AI Item Generator (Groq)
+                      </div>
+
+                      <div className="flex flex-col gap-3">
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-2 block">
+                            Item Description
+                          </label>
+                          <Input
+                            value={itemPrompt}
+                            onChange={(e) => setItemPrompt(e.target.value)}
+                            placeholder="e.g., a legendary fire sword with high attack"
+                            className="bg-secondary/20 border-border/30 text-foreground"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && !isGeneratingItem) {
+                                handleGenerateItem()
+                              }
+                            }}
                           />
-                          <div className="p-2 bg-secondary/30">
-                            <div className="text-[10px] text-muted-foreground truncate">
-                              {portrait.prompt}
+                        </div>
+
+                        <Button
+                          onClick={handleGenerateItem}
+                          disabled={isGeneratingItem || !itemPrompt.trim()}
+                          className="bg-accent hover:bg-accent/80 text-background"
+                        >
+                          {isGeneratingItem ? "Generating..." : "Generate Item"}
+                        </Button>
+
+                        <div className="text-[10px] text-muted-foreground">
+                          Powered by Groq AI. Describe any item and it will be generated with
+                          appropriate stats and rarity.
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Portrait Generator */}
+                    <div className="pb-6 border-b border-border/30">
+                      <div className="text-xs text-muted-foreground uppercase tracking-wider mb-3">
+                        Portrait Generator (fal.ai)
+                      </div>
+
+                      <div className="flex flex-col gap-3">
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-2 block">
+                            Character Description
+                          </label>
+                          <Input
+                            value={portraitPrompt}
+                            onChange={(e) => setPortraitPrompt(e.target.value)}
+                            placeholder="e.g., Dark Wizard Witch"
+                            className="bg-secondary/20 border-border/30 text-foreground"
+                          />
+                        </div>
+
+                        <Button
+                          onClick={handleGeneratePortrait}
+                          disabled={isGeneratingPortrait}
+                          className="bg-accent hover:bg-accent/80 text-background"
+                        >
+                          {isGeneratingPortrait ? "Generating..." : "Generate Portrait"}
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Portrait Gallery */}
+                    <div>
+                      <div className="text-xs text-muted-foreground uppercase tracking-wider mb-3">
+                        Portrait Gallery
+                      </div>
+                      {generatedPortraits.length > 0 ? (
+                        <div className="grid grid-cols-2 gap-3">
+                          {generatedPortraits.map((portrait) => (
+                            <div
+                              key={portrait.id}
+                              className={`rounded overflow-hidden border-2 cursor-pointer transition-all hover:border-accent/50 ${
+                                playerPortrait === portrait.imageUrl
+                                  ? "border-accent"
+                                  : "border-border/30"
+                              }`}
+                              onClick={() => handleSelectPortrait(portrait.id)}
+                            >
+                              <img
+                                src={portrait.imageUrl || "/placeholder.svg"}
+                                alt={portrait.prompt}
+                                className="w-full h-auto object-cover aspect-[2/3]"
+                              />
+                              <div className="p-2 bg-secondary/30">
+                                <div className="text-[10px] text-muted-foreground truncate">
+                                  {portrait.prompt}
+                                </div>
+                              </div>
                             </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-sm text-muted-foreground text-center py-8 bg-secondary/10 rounded border border-border/20">
+                          No portraits generated yet. Generate your first portrait above!
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </TabsContent>
+
+                {/* Entity Registry Tab */}
+                <TabsContent
+                  value="entity-registry"
+                  className="flex-1 overflow-y-auto overflow-x-hidden mt-0 min-w-0 w-full hide-scrollbar"
+                >
+                  <div className="flex flex-col gap-6">
+                    {/* Registry Statistics */}
+                    <div>
+                      <div className="text-xs text-muted-foreground uppercase tracking-wider mb-3">
+                        Registry Statistics
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-secondary/20 rounded p-3 border border-border/30">
+                          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
+                            Total Entities
+                          </div>
+                          <div className="text-2xl font-mono text-accent">{entityStats.total}</div>
+                        </div>
+                        <div className="bg-secondary/20 rounded p-3 border border-border/30">
+                          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
+                            Canonical
+                          </div>
+                          <div className="text-2xl font-mono text-green-500">
+                            {entityStats.canonical}
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {generatedPortraits.length === 0 && (
-                  <div className="mt-6 text-sm text-muted-foreground text-center py-8">
-                    No portraits generated yet. Generate your first portrait above!
-                  </div>
-                )}
-
-                {/* Entity Registry Management */}
-                <div className="mt-8 pt-6 border-t border-border/30">
-                  <div className="text-xs text-muted-foreground uppercase tracking-wider mb-3">
-                    Entity Registry Management
-                  </div>
-
-                  {/* Registry Statistics */}
-                  <div className="grid grid-cols-2 gap-3 mb-4">
-                    <div className="bg-secondary/20 rounded p-3 border border-border/30">
-                      <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
-                        Total Entities
-                      </div>
-                      <div className="text-2xl font-mono text-accent">{entityStats.total}</div>
-                    </div>
-                    <div className="bg-secondary/20 rounded p-3 border border-border/30">
-                      <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
-                        Canonical
-                      </div>
-                      <div className="text-2xl font-mono text-green-500">
-                        {entityStats.canonical}
-                      </div>
-                    </div>
-                    <div className="bg-secondary/20 rounded p-3 border border-border/30">
-                      <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
-                        AI Generated
-                      </div>
-                      <div className="text-2xl font-mono text-purple-500">
-                        {entityStats.bySource.ai || 0}
-                      </div>
-                    </div>
-                    <div className="bg-secondary/20 rounded p-3 border border-border/30">
-                      <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
-                        Overrides
-                      </div>
-                      <div className="text-2xl font-mono text-amber-500">
-                        {entityStats.overrides}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Entity Type Breakdown */}
-                  <div className="mb-4">
-                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">
-                      By Type
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      {Object.entries(entityStats.byType).map(([type, count]) => (
-                        <div
-                          key={type}
-                          className="bg-secondary/10 rounded px-3 py-2 border border-border/20 flex justify-between items-center"
-                        >
-                          <span className="text-xs capitalize">{type}</span>
-                          <span className="text-xs font-mono text-muted-foreground">{count}</span>
+                        <div className="bg-secondary/20 rounded p-3 border border-border/30">
+                          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
+                            AI Generated
+                          </div>
+                          <div className="text-2xl font-mono text-purple-500">
+                            {entityStats.bySource.ai || 0}
+                          </div>
                         </div>
-                      ))}
+                        <div className="bg-secondary/20 rounded p-3 border border-border/30">
+                          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
+                            Overrides
+                          </div>
+                          <div className="text-2xl font-mono text-amber-500">
+                            {entityStats.overrides}
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Management Actions */}
-                  <div className="flex flex-col gap-2">
-                    <Button
-                      onClick={refreshEntityStats}
-                      variant="outline"
-                      className="bg-secondary/20 hover:bg-secondary/30 border-border/30 text-foreground text-xs"
-                    >
-                      Refresh Stats
-                    </Button>
-                    <Button
-                      onClick={handleTestVariants}
-                      variant="outline"
-                      className="bg-accent/10 hover:bg-accent/20 border-accent/30 text-accent text-xs"
-                    >
-                      Test AI Variants (Demo)
-                    </Button>
-                    <Button
-                      onClick={handlePruneExpired}
-                      variant="outline"
-                      className="bg-secondary/20 hover:bg-secondary/30 border-border/30 text-foreground text-xs"
-                    >
-                      Prune Expired Entities
-                    </Button>
-                    <Button
-                      onClick={handleClearAI}
-                      variant="outline"
-                      className="bg-purple-500/10 hover:bg-purple-500/20 border-purple-500/30 text-purple-400 text-xs"
-                    >
-                      Clear AI Entities
-                    </Button>
-                    <Button
-                      onClick={handleClearSession}
-                      variant="outline"
-                      className="bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30 text-blue-400 text-xs"
-                    >
-                      Clear Session Entities
-                    </Button>
-                    <Button
-                      onClick={handleClearAll}
-                      variant="outline"
-                      className="bg-red-500/10 hover:bg-red-500/20 border-red-500/30 text-red-400 text-xs"
-                    >
-                      Clear All Dynamic
-                    </Button>
-                  </div>
-
-                  {/* Entity Browser */}
-                  <div className="mt-4">
-                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">
-                      Entity Browser
-                    </div>
-                    <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
-                      {Object.entries(entityStats.byType).map(([type, count]) => (
-                        <div key={type} className="border border-border/30 rounded overflow-hidden">
-                          <button
-                            onClick={() =>
-                              setExpandedEntityType(expandedEntityType === type ? null : type)
-                            }
-                            className="w-full px-3 py-2 bg-secondary/20 hover:bg-secondary/30 flex justify-between items-center text-xs"
+                    {/* Entity Type Breakdown */}
+                    <div className="pb-6 border-b border-border/30">
+                      <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-3">
+                        By Type
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {Object.entries(entityStats.byType).map(([type, count]) => (
+                          <div
+                            key={type}
+                            className="bg-secondary/10 rounded px-3 py-2 border border-border/20 flex justify-between items-center"
                           >
-                            <span className="capitalize">{type}</span>
-                            <span className="text-muted-foreground">
-                              {expandedEntityType === type ? "▼" : "▶"} {count}
-                            </span>
-                          </button>
-                          {expandedEntityType === type && (
-                            <div className="p-2 bg-secondary/10 max-h-48 overflow-y-auto">
-                              {ENTITIES.byType(type as EntityType).map((entity) => (
-                                <div
-                                  key={entity.id}
-                                  className="text-[10px] py-1 px-2 hover:bg-secondary/20 rounded flex justify-between items-center"
-                                >
-                                  <span className="truncate flex-1">{entity.name}</span>
-                                  <div className="flex gap-2 items-center">
-                                    <span className={`capitalize ${getRarityColor(entity.rarity)}`}>
-                                      {entity.rarity}
-                                    </span>
-                                    {entity.source === "ai" && (
-                                      <span className="text-purple-400 text-[8px]">AI</span>
-                                    )}
+                            <span className="text-xs capitalize">{type}</span>
+                            <span className="text-xs font-mono text-muted-foreground">{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Management Actions */}
+                    <div className="pb-6 border-b border-border/30">
+                      <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-3">
+                        Management Actions
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          onClick={refreshEntityStats}
+                          variant="outline"
+                          className="bg-secondary/20 hover:bg-secondary/30 border-border/30 text-foreground text-xs"
+                        >
+                          Refresh Stats
+                        </Button>
+                        <Button
+                          onClick={handleTestVariants}
+                          variant="outline"
+                          className="bg-accent/10 hover:bg-accent/20 border-accent/30 text-accent text-xs"
+                        >
+                          Test AI Variants
+                        </Button>
+                        <Button
+                          onClick={handlePruneExpired}
+                          variant="outline"
+                          className="bg-secondary/20 hover:bg-secondary/30 border-border/30 text-foreground text-xs"
+                        >
+                          Prune Expired
+                        </Button>
+                        <Button
+                          onClick={handleClearAI}
+                          variant="outline"
+                          className="bg-purple-500/10 hover:bg-purple-500/20 border-purple-500/30 text-purple-400 text-xs"
+                        >
+                          Clear AI
+                        </Button>
+                        <Button
+                          onClick={handleClearSession}
+                          variant="outline"
+                          className="bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30 text-blue-400 text-xs"
+                        >
+                          Clear Session
+                        </Button>
+                        <Button
+                          onClick={handleClearAll}
+                          variant="outline"
+                          className="bg-red-500/10 hover:bg-red-500/20 border-red-500/30 text-red-400 text-xs"
+                        >
+                          Clear All
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Entity Browser */}
+                    <div>
+                      <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-3">
+                        Entity Browser
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        {Object.entries(entityStats.byType).map(([type, count]) => (
+                          <div
+                            key={type}
+                            className="border border-border/30 rounded overflow-hidden"
+                          >
+                            <button
+                              onClick={() =>
+                                setExpandedEntityType(expandedEntityType === type ? null : type)
+                              }
+                              className="w-full px-3 py-2 bg-secondary/20 hover:bg-secondary/30 flex justify-between items-center text-xs transition-colors"
+                            >
+                              <span className="capitalize">{type}</span>
+                              <span className="text-muted-foreground">
+                                {expandedEntityType === type ? "▼" : "▶"} {count}
+                              </span>
+                            </button>
+                            {expandedEntityType === type && (
+                              <div className="p-2 bg-secondary/10 max-h-64 overflow-y-auto">
+                                {ENTITIES.byType(type as EntityType).map((entity) => (
+                                  <div
+                                    key={entity.id}
+                                    className="text-[10px] py-1 px-2 hover:bg-secondary/20 rounded flex justify-between items-center transition-colors"
+                                  >
+                                    <span className="truncate flex-1">{entity.name}</span>
+                                    <div className="flex gap-2 items-center">
+                                      <span
+                                        className={`capitalize ${getRarityColor(entity.rarity)}`}
+                                      >
+                                        {entity.rarity}
+                                      </span>
+                                      {entity.source === "ai" && (
+                                        <span className="text-purple-400 text-[8px]">AI</span>
+                                      )}
+                                    </div>
                                   </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
+                </TabsContent>
+              </Tabs>
             </TabsContent>
           </Tabs>
         </div>
