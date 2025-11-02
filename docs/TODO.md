@@ -2,11 +2,12 @@
 
 **Vision:** Incorporate Path of Adventure (POA) mechanics to enhance portal traversal with progress tracking, strategic choices, portal-scoped buffs, and exclusive artifacts.
 
-**Total Estimated Time:** 8.5 hours  
-**Expert Validation:** ✅ Complete (Opus 4)  
-**Confidence Level:** 95%  
-**Status:** Ready for Implementation  
-**Last Updated:** 2025-11-02
+**Total Estimated Time:** 8.5 hours
+**Expert Validation:** ✅ Complete (Opus 4)
+**Confidence Level:** 95%
+**Status:** ✅ Phase 1 Complete | Phases 2-3 Pending
+**Last Updated:** 2025-11-02 18:00
+**Commit:** fe88570 - "feat: Implement portal traversal enhancements (Phase 1A & 1B)"
 
 ---
 
@@ -97,43 +98,87 @@ From POA analysis (10 mechanics evaluated), these 4 were selected:
 
 ---
 
-## 🎯 Implementation Roadmap
+## 🎯 Implementation Status
 
-### Phase 1A: Portal Progress Tracking ⭐ IMMEDIATE (30 mins)
+### ✅ Phase 1A: Portal Progress Tracking - COMPLETE
 
-**Priority:** IMMEDIATE - Quick win with high UX impact
-**Dependencies:** None
-**Files:** `components/dungeon-crawler.tsx`
+**Status:** ✅ Implemented in commit fe88570
+**Files Modified:** `components/dungeon-crawler.tsx:1743-1772`
 
-**Tasks:**
-- [ ] Add portal progress display component to encounter screen
-  - [ ] Show "Room X/Y" counter
-  - [ ] Add visual progress bar with percentage
-  - [ ] Handle bonus rooms with "(bonus)" indicator
-  - [ ] Style with existing Tailwind classes
-- [ ] Test progress display updates correctly after each room
+**Completed:**
+- [x] Portal progress display component (`Room X/Y` counter)
+- [x] Visual progress bar with cyan theme
+- [x] Bonus room indicator (`X/Y (bonus)`)
+- [x] Positioned below stability bar
+
+**Testing Required:**
+- [ ] Test progress display updates correctly during portal traversal
 - [ ] Verify progress bar animation is smooth
 - [ ] Test edge case: bonus rooms exceeding expected count
 
-**Acceptance Criteria:**
-- [ ] Progress displays "Room 3/8" format
-- [ ] Progress bar fills from 0-100% as rooms complete
-- [ ] Bonus rooms show "8/7 (bonus)" with 100% bar
-- [ ] Visual consistency with portal UI
+---
+
+### ✅ Phase 1B: Multi-Choice Treasure Events - COMPLETE (Backend)
+
+**Status:** ✅ Backend implemented in commit fe88570 | ⚠️ Integration with portal AI pending
+**Files Modified:**
+- `lib/game-engine.ts` - TreasureChoice interface
+- `app/api/generate-narrative/route.ts` - AI prompt + transformation
+- `components/dungeon-crawler.tsx` - UI + handler
+
+**Completed:**
+- [x] Schema Extension - TreasureChoice interface added to game-engine.ts
+- [x] AI Prompt Enhancement - 30% treasure event rate with balance rules
+- [x] Treasure choice transformation logic (AI JSON → game format)
+- [x] UI Component - Grid-based treasure choice cards
+- [x] handleTreasureChoice function (item/gold/health rewards)
+- [x] TypeScript fixes for global animation functions
+
+**Pending (Next Session):**
+- [ ] **CRITICAL:** Integrate treasure choices with portal AI generation
+- [ ] Connect `/api/generate-narrative` to portal traversal events
+- [ ] Test AI-generated treasure choices in actual portal runs
+- [ ] Validate treasure choice balance (equal value across options)
+- [ ] Tune AI prompt based on real gameplay feedback
+
+**Known Issues:**
+- Treasure choices only work with `/api/generate-narrative` (void encounters)
+- Portal traversal still uses old `generateEvent` function (no treasure choices)
+- Need to replace portal event generation with AI endpoint calls
 
 ---
 
-### Phase 1B: Multi-Choice Treasure Events ⭐ HIGH PRIORITY (2 hours)
+### 🔧 Critical Fixes Completed
 
-**Priority:** HIGH - Highest gameplay impact for effort
-**Dependencies:** None
-**Files:** `app/api/generate-narrative/route.ts`, `lib/game-engine.ts`, `components/dungeon-crawler.tsx`
+**Status:** ✅ Complete in commit fe88570
+
+**Fix 1: Stability Decay Edge Case** - FIXED
+- File: `components/dungeon-crawler.tsx:661`
+- Added `Math.max(1, ...)` to prevent infinite low-stability loops
+- [x] Ensures minimum 1-point decay per room
+
+**Fix 2: Room Count Variance** - Already Fixed
+- Investigation showed this was already implemented correctly
+- Room count variance calculated once and stored in `portalData`
+
+---
+
+## 🚀 Next Session: Phase 1B Integration + Phases 2-3
+
+### Priority 1: Complete Phase 1B Integration (1-2 hours)
+
+**Goal:** Connect treasure choices to portal traversal system
 
 **Tasks:**
+- [ ] Modify portal event generation to call `/api/generate-narrative`
+- [ ] Pass portal metadata (theme, rarity) to AI for contextual treasures
+- [ ] Update handleChoice to support treasure choice events
+- [ ] Test treasure choices appear in portal runs (not just void)
+- [ ] Validate balance across different portal rarities
 
-#### 1. Schema Extension (15 mins)
-- [ ] Extend treasure encounter type to support choices array
-- [ ] Define TreasureChoice interface:
+---
+
+### Phase 2: Portal-Scoped Consumables 🟡 MEDIUM PRIORITY (3 hours)
   ```typescript
   interface TreasureChoice {
     type: "item" | "gold" | "health" | "buff";

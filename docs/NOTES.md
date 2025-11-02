@@ -54,3 +54,12 @@ Auto-generated log of all critical (76-100) documentation, technical debt, and n
 ## 2025-11-02 - [NEXT]
 - ⭐90 Start with Phase 1A - Portal progress tracking provides immediate UX improvement (Est: 30 mins, zero balance impact, high visual value)
 - ⭐85 Implement Multi-Choice Treasures - Highest gameplay impact for effort (Est: 2 hours, uses existing systems, player agency >>> RNG)
+
+## 2025-11-02 17:30 - [DOCS]
+- 🔴80 Update ADR.md with portal traversal enhancement decisions (Phases 1A, 1B)
+
+## 2025-11-02 17:30 - [NEXT]
+- ⭐95 Complete Phase 1B treasure choice integration with AI-generated portal events
+- ⭐85 Test Phase 1A portal progress tracking with real portal traversal
+- ⭐80 Test AI treasure choice generation and validate balance
+- ⭐78 Continue with Phase 2 (portal-scoped consumables) in follow-up session

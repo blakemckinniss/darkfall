@@ -860,17 +860,22 @@ export function DungeonCrawler() {
     // Apply the chosen reward
     if (choice.type === "item" && choice.item) {
       setInventory((prev) => [...prev, choice.item!])
-      addFloatingNumber(`+${choice.item.name}`, "item")
-      addLootAnimation(choice.item)
+      // @ts-expect-error - Global function for animations
+      if (window.triggerLootAnimation) {
+        // @ts-expect-error - Global function
+        window.triggerLootAnimation(choice.item)
+      }
     } else if (choice.type === "gold" && choice.gold) {
       setBaseStats((prev) => ({ ...prev, gold: prev.gold + choice.gold! }))
-      addFloatingNumber(`+${choice.gold}g`, "gold")
+      // @ts-expect-error - Global function added by FloatingNumberContainer
+      window.showFloatingNumber?.(choice.gold, "gold")
     } else if (choice.type === "health" && choice.healthRestore) {
       setBaseStats((prev) => ({
         ...prev,
         health: Math.min(prev.maxHealth, prev.health + choice.healthRestore!),
       }))
-      addFloatingNumber(`+${choice.healthRestore} HP`, "heal")
+      // @ts-expect-error - Global function added by FloatingNumberContainer
+      window.showFloatingNumber?.(choice.healthRestore, "heal")
     }
 
     // Clear treasure choices from log
