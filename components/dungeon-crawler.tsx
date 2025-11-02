@@ -18,6 +18,8 @@ import {
   type Location,
   type ActiveEffect,
   type TreasureChoice,
+  type PortalSession,
+  type PortalBuff,
 } from "@/lib/game-engine"
 import { saveGameState, loadGameState, type GeneratedPortrait } from "@/lib/game-state"
 import type { Rarity, Stats } from "@/lib/types"
@@ -157,6 +159,7 @@ export function DungeonCrawler() {
   const [openLocations, setOpenLocations] = useState<Location[]>([])
   const [activeTab, setActiveTab] = useState<string>("portal")
   const [activeLocation, setActiveLocation] = useState<string | null>(null)
+  const [portalSessions, setPortalSessions] = useState<Record<string, PortalSession>>({})
 
   const [logEntries, setLogEntries] = useState<LogEntry[]>([])
   const [currentEvent, setCurrentEvent] = useState<GameEvent | null>(null)
@@ -383,6 +386,19 @@ export function DungeonCrawler() {
       setEquippedItems(savedState.equippedItems)
       setActiveEffects(savedState.activeEffects.filter((effect) => effect.endTime > Date.now()))
       setOpenLocations(savedState.openLocations)
+
+      // Load and validate portal sessions
+      if (savedState.portalSessions) {
+        // Remove sessions for portals that no longer exist
+        const validSessions = Object.fromEntries(
+          Object.entries(savedState.portalSessions).filter(([locationId]) =>
+            savedState.openLocations.some((loc) => loc.id === locationId)
+          )
+        )
+        setPortalSessions(validSessions)
+        addDebugLog("state", `Loaded ${Object.keys(validSessions).length} portal sessions`)
+      }
+
       setPlayerPortrait(savedState.activePortrait)
       setGeneratedPortraits(savedState.generatedPortraits || [])
       console.log("[v0] Player portrait loaded:", savedState.activePortrait)
@@ -407,6 +423,7 @@ export function DungeonCrawler() {
         equippedItems,
         activeEffects,
         openLocations,
+        portalSessions,
         activePortrait: playerPortrait,
         generatedPortraits,
       }
@@ -420,6 +437,7 @@ export function DungeonCrawler() {
     equippedItems,
     activeEffects,
     openLocations,
+    portalSessions,
     playerPortrait,
     generatedPortraits,
   ])
@@ -485,6 +503,7 @@ export function DungeonCrawler() {
         equippedItems,
         activeEffects,
         openLocations,
+        portalSessions,
         activePortrait: playerPortrait,
         generatedPortraits,
       }
@@ -499,6 +518,7 @@ export function DungeonCrawler() {
     equippedItems,
     activeEffects,
     openLocations,
+    portalSessions,
     playerPortrait,
     generatedPortraits,
   ])
@@ -739,6 +759,14 @@ export function DungeonCrawler() {
             if (roomLimitReached || stabilityDepleted) {
               setTimeout(() => {
                 setOpenLocations((current) => current.filter((l) => l.id !== activeLocation))
+                // Clear portal session and buffs when portal collapses
+                setPortalSessions((prev) => {
+                  const next = { ...prev }
+                  if (activeLocation) {
+                    delete next[activeLocation]
+                  }
+                  return next
+                })
                 setActiveTab("portal")
                 setActiveLocation(null)
                 const reason = roomLimitReached ? "fully explored" : "unstable"
@@ -1219,23 +1247,65 @@ export function DungeonCrawler() {
         `Permanent effect applied: ATK${(effect.statChanges.attack || 0) > 0 ? "+" : ""}${effect.statChanges.attack || 0}, DEF${(effect.statChanges.defense || 0) > 0 ? "+" : ""}${effect.statChanges.defense || 0}, HP${(effect.statChanges.maxHealth || 0) > 0 ? "+" : ""}${effect.statChanges.maxHealth || 0}`
       )
     } else if (effect.type === "temporary" && effect.duration) {
-      const newEffect: ActiveEffect = {
-        id: Math.random().toString(36).substr(2, 9),
-        name: item.name,
-        statChanges: effect.statChanges,
-        endTime: Date.now() + effect.duration * 1000,
-        rarity: item.rarity,
+      // Check if this is a portal-scoped buff
+      if (effect.scope === "portal") {
+        // Validate player is in a portal
+        if (!activeLocation || activeLocation === "void") {
+          addLogEntry("Portal-scoped consumables only work inside portals!", item.name, item.rarity)
+          addDebugLog("game", `Cannot use portal consumable outside portal: ${item.name}`)
+          return
+        }
+
+        // Create portal buff
+        const buff: PortalBuff = {
+          id: Math.random().toString(36).substr(2, 9),
+          name: item.name,
+          statChanges: effect.statChanges,
+          consumableId: item.id,
+          appliedAt: Date.now(),
+          rarity: item.rarity,
+        }
+
+        // Add buff to portal session
+        setPortalSessions((prev) => ({
+          ...prev,
+          [activeLocation]: {
+            locationId: activeLocation,
+            enteredAt: prev[activeLocation]?.enteredAt || Date.now(),
+            activeBuffs: [...(prev[activeLocation]?.activeBuffs || []), buff],
+            roomsVisited: prev[activeLocation]?.roomsVisited || 0,
+          },
+        }))
+
+        addLogEntry(
+          `You consumed ${item.name}. Its effects are active in this portal!`,
+          item.name,
+          item.rarity
+        )
+        addDebugLog(
+          "game",
+          `Portal buff applied to ${activeLocation}: ATK${(effect.statChanges.attack || 0) > 0 ? "+" : ""}${effect.statChanges.attack || 0}, DEF${(effect.statChanges.defense || 0) > 0 ? "+" : ""}${effect.statChanges.defense || 0}`
+        )
+      } else {
+        // Global temporary effect
+        const newEffect: ActiveEffect = {
+          id: Math.random().toString(36).substr(2, 9),
+          name: item.name,
+          statChanges: effect.statChanges,
+          endTime: Date.now() + effect.duration * 1000,
+          rarity: item.rarity,
+        }
+        setActiveEffects((prev) => [...prev, newEffect])
+        addLogEntry(
+          `You consumed ${item.name}. Its effects will last for ${effect.duration} seconds!`,
+          item.name,
+          item.rarity
+        )
+        addDebugLog(
+          "game",
+          `Temporary effect active for ${effect.duration}s: ATK${(effect.statChanges.attack || 0) > 0 ? "+" : ""}${effect.statChanges.attack || 0}, DEF${(effect.statChanges.defense || 0) > 0 ? "+" : ""}${effect.statChanges.defense || 0}`
+        )
       }
-      setActiveEffects((prev) => [...prev, newEffect])
-      addLogEntry(
-        `You consumed ${item.name}. Its effects will last for ${effect.duration} seconds!`,
-        item.name,
-        item.rarity
-      )
-      addDebugLog(
-        "game",
-        `Temporary effect active for ${effect.duration}s: ATK${(effect.statChanges.attack || 0) > 0 ? "+" : ""}${effect.statChanges.attack || 0}, DEF${(effect.statChanges.defense || 0) > 0 ? "+" : ""}${effect.statChanges.defense || 0}`
-      )
     }
 
     setInventory((prev) => prev.filter((i) => i.id !== item.id))
@@ -1852,6 +1922,57 @@ export function DungeonCrawler() {
                   }
                   return null
                 })()}
+
+                {/* Active Portal Buffs */}
+                {activeLocation &&
+                  portalSessions[activeLocation]?.activeBuffs &&
+                  portalSessions[activeLocation].activeBuffs.length > 0 && (
+                    <div className="mt-4">
+                      <div className="text-xs text-muted-foreground uppercase tracking-wider mb-2">
+                        Active Buffs
+                      </div>
+                      <div className="space-y-1">
+                        {portalSessions[activeLocation]!.activeBuffs.map((buff) => {
+                          // Format stat changes into readable string
+                          const statChanges = buff.statChanges
+                          const statParts: string[] = []
+
+                          if (statChanges.attack) {
+                            statParts.push(
+                              `${statChanges.attack > 0 ? "+" : ""}${statChanges.attack} ATK`
+                            )
+                          }
+                          if (statChanges.defense) {
+                            statParts.push(
+                              `${statChanges.defense > 0 ? "+" : ""}${statChanges.defense} DEF`
+                            )
+                          }
+                          if (statChanges.maxHealth) {
+                            statParts.push(
+                              `${statChanges.maxHealth > 0 ? "+" : ""}${statChanges.maxHealth} HP`
+                            )
+                          }
+                          if (statChanges.health) {
+                            statParts.push(
+                              `${statChanges.health > 0 ? "+" : ""}${statChanges.health} HP`
+                            )
+                          }
+
+                          const statsDisplay =
+                            statParts.length > 0 ? statParts.join(", ") : "Stability"
+
+                          return (
+                            <div key={buff.id} className="text-xs flex items-center gap-2">
+                              <span className={`font-medium ${getRarityColor(buff.rarity)}`}>
+                                {buff.name}
+                              </span>
+                              <span className="text-muted-foreground">{statsDisplay}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
               </div>
             )}
 

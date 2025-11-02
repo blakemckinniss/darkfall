@@ -39,6 +39,7 @@ describe("game-state", () => {
     },
     activeEffects: [],
     openLocations: [],
+    portalSessions: {},
     activePortrait: null,
     generatedPortraits: [],
   }

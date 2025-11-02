@@ -1,6 +1,12 @@
 "use client"
 
-import type { PlayerStats, InventoryItem, Location, ActiveEffect } from "./game-engine"
+import type {
+  PlayerStats,
+  InventoryItem,
+  Location,
+  ActiveEffect,
+  PortalSession,
+} from "./game-engine"
 
 export interface GeneratedPortrait {
   id: string
@@ -20,6 +26,7 @@ export interface GameState {
   }
   activeEffects: ActiveEffect[]
   openLocations: Location[]
+  portalSessions: Record<string, PortalSession>
   activePortrait: string | null
   generatedPortraits: GeneratedPortrait[]
 }
