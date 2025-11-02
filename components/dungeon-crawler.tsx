@@ -7,8 +7,6 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AnimatedNumber } from "@/components/animated-number"
-import { FloatingNumberContainer } from "@/components/floating-number"
-import { LootAnimationContainer } from "@/components/loot-animation"
 import { Input } from "@/components/ui/input"
 import {
   generateEvent,
@@ -24,7 +22,6 @@ import {
 import { saveGameState, loadGameState, type GeneratedPortrait } from "@/lib/game-state"
 import type { Rarity, Stats } from "@/lib/types"
 import { ENTITIES, RARITY_COLORS, type EntityType } from "@/lib/entities"
-import type { DamageSource } from "@/lib/animations"
 import { maps as canonicalMaps } from "@/lib/entities/canonical/maps"
 
 interface LogEntry {
@@ -797,36 +794,41 @@ export function DungeonCrawler() {
     const newStats = { ...baseStats }
     let newInventory = [...inventory]
 
-    // Helper to determine damage source based on event context
-    const getDamageSourceFromEvent = (): DamageSource => {
-      if (currentEvent.entity === "enemy" || currentEvent.entityData?.type === "enemy") {
-        return "enemy"
-      }
-      if (
-        currentEvent.entity === "location" ||
-        currentEvent.entityData?.type === "location" ||
-        activeLocation
-      ) {
-        return "environment"
-      }
-      return "self"
-    }
-
     if (outcome.healthChange) {
+      const previousHealth = newStats.health
       newStats.health = Math.max(
         0,
         Math.min(playerStats.maxHealth, newStats.health + outcome.healthChange)
       )
+
+      // Add inline combat text representation
+      const isHealing = outcome.healthChange > 0
+      const isDamage = outcome.healthChange < 0
+      const changeAmount = Math.abs(outcome.healthChange)
+
+      let combatText = ""
+      if (isHealing) {
+        combatText = `💚 Restored ${changeAmount} health (${previousHealth} → ${newStats.health})`
+      } else if (isDamage) {
+        const source =
+          currentEvent.entity === "enemy" || currentEvent.entityData?.type === "enemy"
+            ? "enemy attack"
+            : currentEvent.entity === "location" ||
+                currentEvent.entityData?.type === "location" ||
+                activeLocation
+              ? "environmental hazard"
+              : "unknown source"
+        combatText = `💥 Took ${changeAmount} damage from ${source} (${previousHealth} → ${newStats.health})`
+      }
+
+      if (combatText) {
+        addLogEntry(combatText, "combat")
+      }
+
       addDebugLog(
         "game",
         `Health changed: ${outcome.healthChange > 0 ? "+" : ""}${outcome.healthChange} (${newStats.health}/${playerStats.maxHealth})`
       )
-
-      // Show floating number with directional animation
-      const damageSource: DamageSource =
-        outcome.healthChange > 0 ? "heal" : getDamageSourceFromEvent()
-      // @ts-expect-error - Global function added by FloatingNumberContainer
-      window.showFloatingNumber?.(outcome.healthChange, damageSource)
     }
     if (outcome.goldChange) {
       newStats.gold = Math.max(0, newStats.gold + outcome.goldChange)
@@ -856,12 +858,7 @@ export function DungeonCrawler() {
       addLogEntry(`Gained: ${outcome.itemGained.name}`, "item")
       addDebugLog("game", `Item gained: ${outcome.itemGained.name} (${outcome.itemGained.rarity})`)
 
-      // Trigger loot drop animation based on rarity
-      // @ts-expect-error - Global function for animations
-      if (window.triggerLootAnimation) {
-        // @ts-expect-error - Global function
-        window.triggerLootAnimation(outcome.itemGained)
-      }
+      // Item already logged via addLogEntry above
     }
     if (outcome.itemLost) {
       newInventory = newInventory.filter((item) => item.id !== outcome.itemLost)
@@ -909,22 +906,20 @@ export function DungeonCrawler() {
     // Apply the chosen reward
     if (choice.type === "item" && choice.item) {
       setInventory((prev) => [...prev, choice.item!])
-      // @ts-expect-error - Global function for animations
-      if (window.triggerLootAnimation) {
-        // @ts-expect-error - Global function
-        window.triggerLootAnimation(choice.item)
-      }
+      addLogEntry(`✨ Obtained: ${choice.item.name}`, choice.item.rarity)
     } else if (choice.type === "gold" && choice.gold) {
       setBaseStats((prev) => ({ ...prev, gold: prev.gold + choice.gold! }))
-      // @ts-expect-error - Global function added by FloatingNumberContainer
-      window.showFloatingNumber?.(choice.gold, "gold")
+      addLogEntry(`💰 Gained ${choice.gold} gold`, "gold")
     } else if (choice.type === "health" && choice.healthRestore) {
+      const newHealth = Math.min(playerStats.maxHealth, playerStats.health + choice.healthRestore!)
       setBaseStats((prev) => ({
         ...prev,
-        health: Math.min(prev.maxHealth, prev.health + choice.healthRestore!),
+        health: newHealth,
       }))
-      // @ts-expect-error - Global function added by FloatingNumberContainer
-      window.showFloatingNumber?.(choice.healthRestore, "heal")
+      addLogEntry(
+        `❤️ Restored ${choice.healthRestore} health (${playerStats.health} → ${newHealth})`,
+        "heal"
+      )
     }
 
     // Clear treasure choices from log
@@ -1664,8 +1659,6 @@ export function DungeonCrawler() {
         className={`fixed inset-0 pointer-events-none transition-colors duration-1000 ${getMoodOverlay()}`}
       />
 
-      <FloatingNumberContainer />
-      <LootAnimationContainer />
       <div
         className="fixed top-6 left-6 text-2xl font-light tracking-wider text-accent font-inter"
         style={{ textShadow: "0 2px 8px rgba(0,0,0,0.3)" }}
