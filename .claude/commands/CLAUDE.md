@@ -6,6 +6,21 @@ This directory contains custom slash commands for the Blackfell game project.
 
 ### 🚀 Task Execution Commands
 
+#### `/todo [section | all]` - Execute TODO Tasks
+Systematically work through docs/TODO.md by reading structure and executing sections.
+
+```bash
+# Read TODO.md structure
+/todo
+
+# Execute specific section
+/todo prereq
+/todo 1a
+
+# Execute everything
+/todo all
+```
+
 #### `/next [numbers... | all]` - Execute Next Steps
 Execute specific next steps or all next steps from previous response.
 
@@ -170,6 +185,21 @@ Here are some useful command combinations for common scenarios:
 # Create entity then audit balance
 /game:new-entity enemy "Shadow Drake" legendary
 /audit:game-balance
+```
+
+### 📋 Working Through TODO.md
+```bash
+# See what's planned
+/todo
+
+# Execute prerequisites
+/todo prereq
+
+# Execute first phase
+/todo 1a
+
+# Or execute everything
+/todo all
 ```
 
 ### 🔍 Pre-Deployment Checklist

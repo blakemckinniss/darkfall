@@ -525,6 +525,184 @@ See `.claude/commands/README.md` for full command documentation.
 
 ---
 
+## ADR-013: Portal Traversal Enhancement with POA-Inspired Mechanics
+
+**Date:** 2025-11-02
+**Status:** Accepted
+
+### Context
+Portal traversal (map items → temporary locations with multiple rooms) lacked depth and player engagement. Players needed:
+- Better sense of progression through portals
+- More strategic decision points during traversal
+- Meaningful goals beyond simple room completion
+- Enhanced risk/reward dynamics specific to portals
+
+Path of Adventure (POA) game mechanics were analyzed as inspiration for enhancing the portal experience.
+
+### Decision
+Incorporate 4 POA-inspired mechanics specifically designed to enhance portal traversal:
+
+1. **Portal Progress Tracking** - Visual "Room X/Y" counter with progress bar
+2. **Multi-Choice Treasure Events** - Player selects 1 of 2-3 treasure options
+3. **Portal-Scoped Consumables** - Temporary buffs active only in current portal
+4. **Portal-Exclusive Artifacts** - Rare items obtainable only from specific portal themes
+
+### Rationale
+
+**Why These 4 Mechanics:**
+- Validated against roguelike best practices (Hades, Slay the Spire, Dead Cells)
+- Each directly enhances the **traversal experience** (not general game systems)
+- Fits the temporary/high-stakes nature of portals
+- Integrates cleanly with existing portal architecture
+- Provides incremental implementation path (8.5 hours total)
+
+**Why Portal-Specific:**
+- Portals are ephemeral (collapse after X rooms or 0% stability)
+- Players can't return to collapsed portals
+- Risk escalates as stability decreases
+- Theme consistency across portal rooms
+- Distinct from permanent "The Void" location
+
+**Why Not Other POA Mechanics:**
+- Weapon condition system: Too punishing for portal-only degradation
+- Cursed items: Interesting but needs careful balancing (lower priority)
+- Enchanted weapons: Already covered by existing stat system
+- Limited slots: Already implemented via inventory management
+
+### Architecture Impact
+
+**Schema Extensions:**
+```typescript
+// Consumable scope for portal-scoped buffs
+consumableEffect: {
+  scope: "global" | "portal" | "encounter" // NEW
+  portalRestriction?: string // Portal theme/ID
+}
+
+// Portal-exclusive artifact tracking
+portalExclusive: {
+  requiredPortalTheme?: string
+  requiredRarity?: Rarity
+  dropChance: number (0-1)
+  globallyUnique: boolean
+}
+```
+
+**New State Management:**
+- `PortalSession` tracking for multi-portal buff management
+- Global artifact collection in localStorage
+- Room progress counter in `portalData.currentRoomCount`
+
+**AI Generation Changes:**
+- Multi-choice treasure prompts require structured JSON output
+- Choice options must be balanced (similar value)
+- Fallback to simple treasure if AI generation fails
+
+### Critical Fixes (Expert-Identified)
+
+**1. Stability Decay Edge Case:**
+```typescript
+// BEFORE (broken): At low stability, decay rounds to 0
+const decay = Math.floor(stability * (decayRate / 100));
+
+// AFTER (fixed): Ensures minimum 1-point decay
+const decay = Math.max(1, Math.floor(stability * (decayRate / 100)));
+```
+
+**2. Room Count Variance Consistency:**
+```typescript
+// BEFORE (inconsistent): Recalculates on every access
+const roomCount = baseRooms + Math.floor(Math.random() * 3) - 1;
+
+// AFTER (consistent): Determine once at portal creation
+portalData.actualRoomCount = portalData.baseRoomCount + variance;
+```
+
+### Consequences
+
+**Positive:**
+- **Progress Tracking:** Reduces player anxiety, improves UX (30 mins implementation)
+- **Multi-Choice:** Player agency >>> RNG, increases strategic depth (2 hours)
+- **Portal Buffs:** Pre-portal strategic decisions, portal-specific economy (3 hours)
+- **Exclusive Artifacts:** Aspirational goals, replayability driver (3 hours + content)
+- All mechanics enhance portal-specific gameplay
+- Incremental delivery - each phase provides standalone value
+- No breaking changes to existing portal system
+
+**Negative:**
+- **State Complexity (🟡45):** Multiple open portals with scoped buffs needs careful management
+- **AI Balance (🟡35):** Multi-choice treasures require prompt tuning for fair options
+- **Drop Rate Tuning (🟢25):** Exclusive artifacts need playtesting (10-30% baseline)
+- **Maintenance:** Portal-exclusive artifacts require content creation (5-10 items per portal theme)
+
+**Trade-Offs:**
+- Portal-scoped consumables add complexity but provide meaningful strategic depth
+- Multi-choice treasure generation has AI reliability risk but fallback mitigates
+- Exclusive artifacts require ongoing content creation but drive long-term engagement
+- Progress tracking has zero downside (pure UX improvement)
+
+### Implementation
+
+**Phased Roadmap:**
+1. **Phase 1A (30 mins):** Portal progress UI - Immediate UX win
+2. **Phase 1B (2 hours):** Multi-choice treasures - High gameplay impact
+3. **Phase 2 (3 hours):** Portal-scoped consumables - Strategic depth
+4. **Phase 3 (3 hours):** Portal-exclusive artifacts - Replayability
+
+**Key Files:**
+- `components/dungeon-crawler.tsx` - UI, progress display, choice handling
+- `lib/entities/schemas.ts` - Schema extensions for consumables and artifacts
+- `lib/game-engine.ts` - Portal session tracking, buff management
+- `app/api/generate-narrative/route.ts` - Multi-choice treasure prompts
+- `lib/entities/canonical/consumables.ts` - Portal-scoped consumables
+- `lib/entities/canonical/treasures.ts` - Exclusive artifacts
+
+**Detailed Task Breakdown:**
+See `/docs/TODO.md` for comprehensive implementation checklist with:
+- Specific tasks for each phase
+- Acceptance criteria
+- Testing requirements
+- UI/UX specifications
+- Risk mitigations
+
+### Validation
+
+**Expert Review (Opus 4):**
+- ✅ Architecture is production-ready
+- ✅ Incremental delivery approach validated
+- ✅ POA mechanics integration well-scoped
+- ✅ Critical fixes identified (stability decay, room count)
+- ✅ Trade-offs clearly documented
+
+**Web Research:**
+- ✅ Roguelike patterns validated (Hades, Slay the Spire, Dead Cells)
+- ✅ Progress tracking universal in successful roguelikes
+- ✅ Run-scoped power creates meaningful decision points
+- ✅ Multiple reward choices increase player agency
+- ✅ Exclusive incentives drive exploration
+
+### Future Considerations
+
+**Optional Enhancements (Not in Current Scope):**
+- Portal modifiers (cursed/blessed portals with trade-offs)
+- Portal chains (completing one unlocks related portal)
+- Dynamic difficulty adjustment based on player performance
+- Portal challenges (optional objectives for bonus rewards)
+- Portal crafting (combine map fragments for custom portals)
+
+**Performance Optimizations:**
+- AI generation caching (24-hour cache for portal skeletons)
+- Progressive room loading (generate on-demand vs. upfront)
+- localStorage cleanup for completed portals
+
+**Balance Tuning Needed:**
+- Portal-scoped consumable effectiveness
+- Multi-choice treasure value parity
+- Exclusive artifact drop rates
+- Portal-specific economy pricing
+
+---
+
 ## Future ADRs to Consider
 
 As the project evolves, document decisions for:

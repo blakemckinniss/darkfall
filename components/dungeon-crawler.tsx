@@ -17,6 +17,7 @@ import {
   type InventoryItem,
   type Location,
   type ActiveEffect,
+  type TreasureChoice,
 } from "@/lib/game-engine"
 import { saveGameState, loadGameState, type GeneratedPortrait } from "@/lib/game-state"
 import type { Rarity, Stats } from "@/lib/types"
@@ -42,6 +43,8 @@ interface LogEntry {
     | undefined
   choices?: GameEvent["choices"] | undefined
   showChoices?: boolean | undefined
+  treasureChoices?: TreasureChoice[] | undefined
+  showTreasureChoices?: boolean | undefined
 }
 
 interface EquippedItems {
@@ -610,7 +613,8 @@ export function DungeonCrawler() {
     entity?: string,
     entityRarity?: Rarity,
     choices?: GameEvent["choices"],
-    entityData?: LogEntry["entityData"]
+    entityData?: LogEntry["entityData"],
+    treasureChoices?: TreasureChoice[]
   ) => {
     const newEntry: LogEntry = {
       id: Math.random().toString(36).substr(2, 9),
@@ -621,16 +625,24 @@ export function DungeonCrawler() {
       entityData,
       choices,
       showChoices: false,
+      treasureChoices,
+      showTreasureChoices: false,
     }
 
     setLogEntries([newEntry])
 
-    if (choices) {
+    if (choices || treasureChoices) {
       setTimeout(
         () => {
           setLogEntries((prev) =>
             prev.map((entry) =>
-              entry.id === newEntry.id ? { ...entry, showChoices: true } : entry
+              entry.id === newEntry.id
+                ? {
+                    ...entry,
+                    showChoices: !!choices,
+                    showTreasureChoices: !!treasureChoices,
+                  }
+                : entry
             )
           )
         },
@@ -649,21 +661,51 @@ export function DungeonCrawler() {
       setOpenLocations((prev) =>
         prev.map((loc) => {
           if (loc.id === activeLocation) {
-            const newStability = Math.max(0, loc.stability - Math.floor(Math.random() * 15 + 10))
+            // Increment room counter
+            const newRoomCount = (loc.portalData?.currentRoomCount || 0) + 1
 
-            if (newStability <= 0) {
+            // Calculate stability decay (percentage-based if portalData exists)
+            let stabilityDecay
+            if (loc.portalData) {
+              const { min, max } = loc.portalData.stabilityDecayRate
+              const decayPercent = min + Math.random() * (max - min)
+              // Ensure minimum 1-point decay to prevent infinite low-stability loops
+              stabilityDecay = Math.max(1, Math.floor(loc.stability * (decayPercent / 100)))
+            } else {
+              // Legacy: fixed 10-25 decay for backward compatibility
+              stabilityDecay = Math.floor(Math.random() * 15 + 10)
+            }
+
+            const newStability = Math.max(0, loc.stability - stabilityDecay)
+
+            // Check dual collapse conditions
+            const roomLimitReached =
+              newRoomCount >= (loc.portalData?.expectedRoomCount || loc.maxEntrances)
+            const stabilityDepleted = newStability <= 0
+
+            if (roomLimitReached || stabilityDepleted) {
               setTimeout(() => {
                 setOpenLocations((current) => current.filter((l) => l.id !== activeLocation))
                 setActiveTab("portal")
                 setActiveLocation(null)
+                const reason = roomLimitReached ? "fully explored" : "unstable"
                 addLogEntry(
-                  "The portal collapses! You are forced back to the portal nexus.",
+                  `The portal collapses (${reason})! Returning to the portal nexus.`,
                   "portal"
                 )
               }, 1000)
             }
 
-            return { ...loc, stability: newStability }
+            return {
+              ...loc,
+              stability: newStability,
+              ...(loc.portalData && {
+                portalData: {
+                  ...loc.portalData,
+                  currentRoomCount: newRoomCount,
+                },
+              }),
+            }
           }
           return loc
         })
@@ -812,16 +854,72 @@ export function DungeonCrawler() {
     }, 500)
   }
 
+  const handleTreasureChoice = (choice: TreasureChoice) => {
+    addDebugLog("game", `Player selected treasure: ${choice.description}`)
+
+    // Apply the chosen reward
+    if (choice.type === "item" && choice.item) {
+      setInventory((prev) => [...prev, choice.item!])
+      addFloatingNumber(`+${choice.item.name}`, "item")
+      addLootAnimation(choice.item)
+    } else if (choice.type === "gold" && choice.gold) {
+      setBaseStats((prev) => ({ ...prev, gold: prev.gold + choice.gold! }))
+      addFloatingNumber(`+${choice.gold}g`, "gold")
+    } else if (choice.type === "health" && choice.healthRestore) {
+      setBaseStats((prev) => ({
+        ...prev,
+        health: Math.min(prev.maxHealth, prev.health + choice.healthRestore!),
+      }))
+      addFloatingNumber(`+${choice.healthRestore} HP`, "heal")
+    }
+
+    // Clear treasure choices from log
+    setLogEntries((prev) => prev.map((entry) => ({ ...entry, showTreasureChoices: false })))
+
+    // Generate next event after brief delay
+    setTimeout(() => {
+      const nextEvent = generateEvent(playerStats, inventory)
+      setCurrentEvent(nextEvent)
+      addDebugLog("game", `Next event generated: ${nextEvent.entity || "random encounter"}`)
+      addLogEntry(
+        nextEvent.description,
+        nextEvent.entity,
+        nextEvent.entityRarity,
+        nextEvent.choices,
+        nextEvent.entityData
+      )
+    }, 500)
+  }
+
   const handleOpenMap = (mapItem: InventoryItem) => {
     if (!mapItem.mapData) return
 
+    // For now, use the existing locationName (AI generation will be added in Phase 4)
+    const locationName = mapItem.mapData.locationName
+
+    // Apply room count variance (±1) if portal metadata exists
+    const baseRoomCount = mapItem.portalMetadata?.expectedRoomCount || mapItem.mapData.entrances
+    const roomCountVariance = Math.floor(Math.random() * 3) - 1 // -1, 0, or 1
+    const finalRoomCount = Math.max(1, baseRoomCount + roomCountVariance)
+
     const newLocation: Location = {
       id: Math.random().toString(36).substr(2, 9),
-      name: mapItem.mapData.locationName,
-      entrancesRemaining: mapItem.mapData.entrances,
-      maxEntrances: mapItem.mapData.entrances,
+      name: locationName,
+      entrancesRemaining: finalRoomCount,
+      maxEntrances: finalRoomCount,
       rarity: mapItem.mapData.rarity,
       stability: 100,
+      ...(mapItem.portalMetadata && {
+        portalData: {
+          expectedRoomCount: finalRoomCount,
+          currentRoomCount: 0,
+          stabilityDecayRate: mapItem.portalMetadata.stabilityDecayRate,
+          eventDiversity: mapItem.portalMetadata.eventDiversity,
+          riskLevel: mapItem.portalMetadata.riskLevel,
+          theme: mapItem.portalMetadata.theme || "",
+          sourceMapId: mapItem.id,
+        },
+      }),
     }
 
     setOpenLocations((prev) => [...prev, newLocation])
@@ -1690,6 +1788,40 @@ export function DungeonCrawler() {
                     }}
                   />
                 </div>
+
+                {/* Portal Progress Tracking */}
+                {(() => {
+                  const currentLoc = openLocations.find((loc) => loc.id === activeLocation)
+                  if (currentLoc?.portalData) {
+                    const { currentRoomCount, expectedRoomCount } = currentLoc.portalData
+                    const isBonus = currentRoomCount > expectedRoomCount
+                    const progressPercent = Math.min(
+                      100,
+                      (currentRoomCount / expectedRoomCount) * 100
+                    )
+
+                    return (
+                      <div className="mt-4">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground uppercase tracking-wider">
+                            Progress
+                          </span>
+                          <span className="font-mono text-accent">
+                            Room {currentRoomCount}/{expectedRoomCount}
+                            {isBonus && <span className="text-yellow-500 ml-1">(bonus)</span>}
+                          </span>
+                        </div>
+                        <div className="mt-2 h-1 bg-secondary/30 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-cyan-500 transition-all duration-500"
+                            style={{ width: `${progressPercent}%` }}
+                          />
+                        </div>
+                      </div>
+                    )
+                  }
+                  return null
+                })()}
               </div>
             )}
 
@@ -1783,6 +1915,45 @@ export function DungeonCrawler() {
                           ))}
                         </div>
                       )}
+                      {entry.treasureChoices && entry.showTreasureChoices && (
+                        <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 animate-in fade-in duration-300">
+                          {entry.treasureChoices.map((treasureChoice, choiceIndex) => (
+                            <div
+                              key={choiceIndex}
+                              className="choice-stagger p-4 bg-secondary/30 rounded border border-border/50 hover:border-accent hover:bg-accent/5 cursor-pointer transition-all duration-200 active:scale-95"
+                              style={{ animationDelay: `${choiceIndex * 100}ms` }}
+                              onClick={() => handleTreasureChoice(treasureChoice)}
+                            >
+                              <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-2">
+                                {treasureChoice.type}
+                              </div>
+                              <div className="text-sm font-light text-foreground mb-2">
+                                {treasureChoice.description}
+                              </div>
+                              {treasureChoice.item && (
+                                <div className="text-xs text-muted-foreground">
+                                  {treasureChoice.item.stats?.attack &&
+                                    `+${treasureChoice.item.stats.attack} ATK `}
+                                  {treasureChoice.item.stats?.defense &&
+                                    `+${treasureChoice.item.stats.defense} DEF `}
+                                  {treasureChoice.item.stats?.health &&
+                                    `+${treasureChoice.item.stats.health} HP`}
+                                </div>
+                              )}
+                              {treasureChoice.gold && (
+                                <div className="text-xs text-yellow-500">
+                                  +{treasureChoice.gold} gold
+                                </div>
+                              )}
+                              {treasureChoice.healthRestore && (
+                                <div className="text-xs text-green-500">
+                                  Restore {treasureChoice.healthRestore} HP
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )
                 })}
@@ -1826,6 +1997,45 @@ export function DungeonCrawler() {
                                   <span className="text-accent mr-2">›</span>
                                   {choice.text}
                                 </Button>
+                              ))}
+                            </div>
+                          )}
+                          {entry.treasureChoices && entry.showTreasureChoices && (
+                            <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 animate-in fade-in duration-300">
+                              {entry.treasureChoices.map((treasureChoice, choiceIndex) => (
+                                <div
+                                  key={choiceIndex}
+                                  className="choice-stagger p-4 bg-secondary/30 rounded border border-border/50 hover:border-accent hover:bg-accent/5 cursor-pointer transition-all duration-200 active:scale-95"
+                                  style={{ animationDelay: `${choiceIndex * 100}ms` }}
+                                  onClick={() => handleTreasureChoice(treasureChoice)}
+                                >
+                                  <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-2">
+                                    {treasureChoice.type}
+                                  </div>
+                                  <div className="text-sm font-light text-foreground mb-2">
+                                    {treasureChoice.description}
+                                  </div>
+                                  {treasureChoice.item && (
+                                    <div className="text-xs text-muted-foreground">
+                                      {treasureChoice.item.stats?.attack &&
+                                        `+${treasureChoice.item.stats.attack} ATK `}
+                                      {treasureChoice.item.stats?.defense &&
+                                        `+${treasureChoice.item.stats.defense} DEF `}
+                                      {treasureChoice.item.stats?.health &&
+                                        `+${treasureChoice.item.stats.health} HP`}
+                                    </div>
+                                  )}
+                                  {treasureChoice.gold && (
+                                    <div className="text-xs text-yellow-500">
+                                      +{treasureChoice.gold} gold
+                                    </div>
+                                  )}
+                                  {treasureChoice.healthRestore && (
+                                    <div className="text-xs text-green-500">
+                                      Restore {treasureChoice.healthRestore} HP
+                                    </div>
+                                  )}
+                                </div>
                               ))}
                             </div>
                           )}
@@ -2681,9 +2891,22 @@ export function DungeonCrawler() {
                 } ${dragOverItemId === item.id ? "border-2 border-accent" : ""}`}
                 onClick={() => {
                   if (item.type === "map" && item.mapData) {
+                    const meta = item.portalMetadata
                     setModalContent({
                       title: item.name,
-                      description: `Location: ${item.mapData.locationName}\nEntrances: ${item.mapData.entrances}\nRarity: ${item.mapData.rarity}\n\nOpen this map to unlock a portal to ${item.mapData.locationName}.`,
+                      description: `Location: ${item.mapData.locationName}
+Entrances: ~${meta?.expectedRoomCount || item.mapData.entrances} rooms${meta ? " (±1 variance)" : ""}
+Rarity: ${item.mapData.rarity}
+${
+  meta
+    ? `
+Risk Level: ${meta.riskLevel}
+Stability Decay: ${meta.stabilityDecayRate.min}-${meta.stabilityDecayRate.max}% per room
+Events: ${meta.eventDiversity.join(", ")}${meta.theme ? `\nTheme: ${meta.theme}` : ""}`
+    : ""
+}
+
+Open this map to unlock a portal to ${item.mapData.locationName}.`,
                     })
                     setModalOpen(true)
                   } else if (item.type === "consumable" && item.consumableEffect) {

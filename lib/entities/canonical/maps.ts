@@ -14,6 +14,14 @@ export const maps: MapItem[] = [
     version: 1,
     sessionOnly: false,
     tags: ["location", "portal"],
+    portalMetadata: {
+      expectedRoomCount: 4,
+      stabilityDecayRate: { min: 5, max: 15 },
+      eventDiversity: ["combat", "treasure", "mystery"],
+      riskLevel: "low",
+      theme:
+        "Forgotten Catacombs - crumbling stone passages, undead presence, ancient burial chambers",
+    },
   },
   {
     id: "map:weathered_map",
@@ -28,6 +36,15 @@ export const maps: MapItem[] = [
     version: 1,
     sessionOnly: false,
     tags: ["location", "portal"],
+    portalMetadata: {
+      expectedRoomCount: 6,
+      stabilityDecayRate: { min: 8, max: 18 },
+      eventDiversity: ["mystery", "treasure", "combat"],
+      riskLevel: "medium",
+      theme:
+        "Ancient Library - dusty tomes, arcane knowledge, guardian constructs, forgotten secrets",
+      themeColor: "text-amber-500",
+    },
   },
   {
     id: "map:enchanted_map",
@@ -42,6 +59,15 @@ export const maps: MapItem[] = [
     version: 1,
     sessionOnly: false,
     tags: ["location", "portal", "magic"],
+    portalMetadata: {
+      expectedRoomCount: 8,
+      stabilityDecayRate: { min: 10, max: 20 },
+      eventDiversity: ["combat", "treasure", "mystery", "hazard"],
+      riskLevel: "high",
+      theme:
+        "Crystal Caverns - luminous crystal formations, arcane energy, elemental hazards, magical resonance",
+      themeColor: "text-cyan-400",
+    },
   },
   {
     id: "map:mystical_map",
@@ -56,6 +82,15 @@ export const maps: MapItem[] = [
     version: 1,
     sessionOnly: false,
     tags: ["location", "portal", "dragon"],
+    portalMetadata: {
+      expectedRoomCount: 13,
+      stabilityDecayRate: { min: 12, max: 25 },
+      eventDiversity: ["combat", "treasure", "mystery", "hazard", "rest"],
+      riskLevel: "extreme",
+      theme:
+        "Dragon's Lair - scorched chambers, hoarded treasures, draconic guardians, volcanic hazards",
+      themeColor: "text-red-500",
+    },
   },
   {
     id: "map:torn_map",
@@ -70,6 +105,13 @@ export const maps: MapItem[] = [
     version: 1,
     sessionOnly: false,
     tags: ["location", "portal"],
+    portalMetadata: {
+      expectedRoomCount: 3,
+      stabilityDecayRate: { min: 5, max: 15 },
+      eventDiversity: ["combat", "hazard", "treasure"],
+      riskLevel: "low",
+      theme: "Abandoned Mine - dark tunnels, cave-ins, mining equipment, lurking creatures",
+    },
   },
   {
     id: "map:ancient_map",
@@ -84,5 +126,14 @@ export const maps: MapItem[] = [
     version: 1,
     sessionOnly: false,
     tags: ["location", "portal", "ancient"],
+    portalMetadata: {
+      expectedRoomCount: 6,
+      stabilityDecayRate: { min: 8, max: 18 },
+      eventDiversity: ["mystery", "hazard", "combat", "treasure"],
+      riskLevel: "medium",
+      theme:
+        "Sunken Temple - flooded chambers, ancient rituals, water hazards, corrupted guardians",
+      themeColor: "text-blue-400",
+    },
   },
 ]

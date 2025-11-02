@@ -1,4 +1,5 @@
 import type { Rarity, ItemType, EffectType, Stats } from "./types"
+import type { PortalMetadata, PortalData } from "./entities/schemas"
 import { ENTITIES } from "./entities"
 
 export interface PlayerStats {
@@ -24,6 +25,7 @@ export interface InventoryItem {
     entrances: number
     rarity: Rarity
   }
+  portalMetadata?: PortalMetadata
   consumableEffect?: {
     type: EffectType
     duration?: number
@@ -46,6 +48,16 @@ export interface Location {
   maxEntrances: number
   rarity: Rarity
   stability: number // Portal stability percentage (0-100)
+  portalData?: PortalData
+}
+
+export interface TreasureChoice {
+  type: "item" | "gold" | "health" | "buff"
+  item?: InventoryItem
+  gold?: number
+  healthRestore?: number
+  buffEffect?: ActiveEffect
+  description: string
 }
 
 export interface GameEvent {
@@ -76,6 +88,7 @@ export interface GameEvent {
       unlockTab?: string
     }
   }[]
+  treasureChoices?: TreasureChoice[]
 }
 
 // Location flavor text for encounters
@@ -266,6 +279,7 @@ export function generateEvent(playerStats: PlayerStats, _inventory: InventoryIte
                   entrances: mapItem.entrances,
                   rarity: mapItem.rarity,
                 },
+                ...(mapItem.portalMetadata && { portalMetadata: mapItem.portalMetadata }),
               },
             },
           },

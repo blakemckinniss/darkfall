@@ -50,3 +50,7 @@ Auto-generated log of all critical (76-100) documentation, technical debt, and n
 
 ## 2025-11-01 12:10 - [NEXT]
 - ⭐85 Update .claude/hooks/README.md with outdated knowledge detection documentation
+
+## 2025-11-02 - [NEXT]
+- ⭐90 Start with Phase 1A - Portal progress tracking provides immediate UX improvement (Est: 30 mins, zero balance impact, high visual value)
+- ⭐85 Implement Multi-Choice Treasures - Highest gameplay impact for effort (Est: 2 hours, uses existing systems, player agency >>> RNG)

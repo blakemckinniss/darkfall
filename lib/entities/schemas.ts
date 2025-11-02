@@ -82,6 +82,19 @@ export const consumableSchema = entityMetadataSchema.extend({
   description: z.string().optional(),
 })
 
+// Portal metadata schema for map items
+export const portalMetadataSchema = z.object({
+  expectedRoomCount: z.number().int().min(3).max(15),
+  stabilityDecayRate: z.object({
+    min: z.number().min(5).max(20),
+    max: z.number().min(10).max(35),
+  }),
+  eventDiversity: z.array(z.enum(["combat", "treasure", "mystery", "hazard", "rest"])).min(1),
+  riskLevel: z.enum(["low", "medium", "high", "extreme"]),
+  theme: z.string().optional(),
+  themeColor: z.string().optional(),
+})
+
 // Map schema
 export const mapSchema = entityMetadataSchema.extend({
   entityType: z.literal("map"),
@@ -92,6 +105,22 @@ export const mapSchema = entityMetadataSchema.extend({
   value: z.number().nonnegative().default(0),
   icon: z.string().default("ra-scroll-unfurled"),
   description: z.string().optional(),
+  portalMetadata: portalMetadataSchema.optional(),
+})
+
+// Portal data schema for location entities
+export const portalDataSchema = z.object({
+  expectedRoomCount: z.number().int(),
+  currentRoomCount: z.number().int().default(0),
+  stabilityDecayRate: z.object({
+    min: z.number(),
+    max: z.number(),
+  }),
+  eventDiversity: z.array(z.string()),
+  riskLevel: z.enum(["low", "medium", "high", "extreme"]),
+  theme: z.string(),
+  aiGeneratedDescription: z.string().optional(),
+  sourceMapId: z.string().optional(),
 })
 
 // Location schema
@@ -103,6 +132,7 @@ export const locationSchema = entityMetadataSchema.extend({
   rarity: raritySchema,
   stability: z.number().min(0).max(100).default(100),
   description: z.string().optional(),
+  portalData: portalDataSchema.optional(),
 })
 
 // Encounter schema (for mystery encounters like merchant, fountain, altar)
@@ -146,6 +176,8 @@ export type EffectType = z.infer<typeof effectTypeSchema>
 export type EntityType = z.infer<typeof entityTypeSchema>
 export type Stats = z.infer<typeof statsSchema>
 export type EntityMetadata = z.infer<typeof entityMetadataSchema>
+export type PortalMetadata = z.infer<typeof portalMetadataSchema>
+export type PortalData = z.infer<typeof portalDataSchema>
 export type Enemy = z.infer<typeof enemySchema>
 export type Treasure = z.infer<typeof treasureSchema>
 export type Consumable = z.infer<typeof consumableSchema>

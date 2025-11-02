@@ -17,6 +17,21 @@ interface NarrativeChoice {
   }
 }
 
+interface NarrativeTreasureChoice {
+  type: "item" | "gold" | "health"
+  description: string
+  itemName?: string
+  itemType?: "weapon" | "armor" | "accessory" | "consumable"
+  itemStats?: {
+    attack?: number
+    defense?: number
+    health?: number
+  }
+  itemRarity?: "common" | "uncommon" | "rare" | "epic" | "legendary"
+  gold?: number
+  healthRestore?: number
+}
+
 interface NarrativeData {
   description: string
   entity: string
@@ -24,6 +39,7 @@ interface NarrativeData {
   entityType: string
   color?: string
   choices: NarrativeChoice[]
+  treasureChoices?: NarrativeTreasureChoice[]
   entityData?: {
     health?: number
     attack?: number
@@ -117,6 +133,18 @@ Respond ONLY with valid JSON matching this exact structure (no markdown, no extr
         "experienceChange": number (optional, 0 to 60)
       }
     }
+  ],
+  "treasureChoices": [ // OPTIONAL - only for treasure/loot events (entityType: "object")
+    {
+      "type": "item" | "gold" | "health",
+      "description": "string (clear description of reward)",
+      "itemName": "string (only if type=item)",
+      "itemType": "weapon" | "armor" | "accessory" | "consumable" (only if type=item),
+      "itemStats": { "attack": number, "defense": number, "health": number } (only if type=item),
+      "itemRarity": "common" | "uncommon" | "rare" | "epic" | "legendary" (only if type=item),
+      "gold": number (only if type=gold, range: 20-100 based on rarity),
+      "healthRestore": number (only if type=health, range: 15-40)
+    }
   ]
 }
 
@@ -162,6 +190,32 @@ OUTCOME BALANCE:
 - Safe: minimal stat changes (0-5 exp, 0-5 gold)
 
 ENTITY TYPES: enemy (hostile), npc (can trade), object (interactive), creature (neutral), phenomenon (environmental)
+
+TREASURE CHOICE GENERATION (OPTIONAL - 30% of encounters):
+When generating treasure/loot events (entityType: "object"), you MAY include 2-3 balanced treasureChoices.
+Each choice must be roughly equal value but serve different playstyles.
+
+TREASURE CHOICE EXAMPLES:
+1. Combat Focus:
+   - {"type": "item", "itemName": "Obsidian Blade", "itemType": "weapon", "itemStats": {"attack": 8}, "itemRarity": "uncommon", "description": "Sharp volcanic glass blade (+8 ATK)"}
+   - {"type": "item", "itemName": "Iron Plate", "itemType": "armor", "itemStats": {"defense": 6}, "itemRarity": "uncommon", "description": "Heavy iron armor (+6 DEF)"}
+   - {"type": "gold", "gold": 45, "description": "Pile of 45 gold coins"}
+
+2. Mixed Rewards:
+   - {"type": "item", "itemName": "Lesser Healing Potion", "itemType": "consumable", "itemStats": {"health": 20}, "itemRarity": "common", "description": "Restores 20 health when used"}
+   - {"type": "gold", "gold": 30, "description": "30 gold coins"}
+   - {"type": "health", "healthRestore": 25, "description": "Fresh water spring (restore 25 health now)"}
+
+3. High-Risk High-Reward:
+   - {"type": "item", "itemName": "Void Shard", "itemType": "accessory", "itemStats": {"attack": 5, "defense": 3}, "itemRarity": "rare", "description": "Crystallized void energy (+5 ATK, +3 DEF)"}
+   - {"type": "gold", "gold": 80, "description": "Large cache of 80 gold"}
+
+TREASURE CHOICE BALANCE RULES:
+- All choices in a set must be roughly equal total value
+- Items: Balance stats by rarity (rare item = high gold amount)
+- Diversity: Mix item types (weapon, armor, consumable) or reward types (item, gold, health)
+- No duplicate types in a single choice set
+- Keep descriptions concise (under 60 characters)
 
 CURRENT ENCOUNTER CONTEXT (seed: ${seed}):
 - Atmosphere: ${atmosphere}
@@ -224,6 +278,40 @@ Use this context to create unique encounters. The theme and atmosphere should su
       }
     }
 
+    // Transform treasure choices if present
+    const transformedTreasureChoices = narrativeData.treasureChoices?.map((choice) => {
+      const baseChoice = {
+        type: choice.type,
+        description: choice.description,
+      }
+
+      if (choice.type === "item" && choice.itemName) {
+        return {
+          ...baseChoice,
+          item: {
+            id: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            name: choice.itemName,
+            type: choice.itemType || "treasure",
+            value: choice.gold || 0,
+            rarity: choice.itemRarity || "common",
+            icon: getIconForItemType(choice.itemType || "treasure"),
+            stats: choice.itemStats,
+          },
+        }
+      } else if (choice.type === "gold") {
+        return {
+          ...baseChoice,
+          gold: choice.gold || 0,
+        }
+      } else if (choice.type === "health") {
+        return {
+          ...baseChoice,
+          healthRestore: choice.healthRestore || 0,
+        }
+      }
+      return baseChoice
+    })
+
     // Transform to GameEvent structure
     const event = {
       description: narrativeData.description,
@@ -254,6 +342,7 @@ Use this context to create unique encounters. The theme and atmosphere should su
           }),
         },
       })),
+      ...(transformedTreasureChoices && { treasureChoices: transformedTreasureChoices }),
     }
 
     console.log("[narrative] Generated event:", event)
@@ -280,4 +369,15 @@ function getIconForEntityType(type: string): string {
     phenomenon: "ra-crystal-wand",
   }
   return iconMap[type] || "ra-droplet"
+}
+
+function getIconForItemType(type: string): string {
+  const iconMap: Record<string, string> = {
+    weapon: "ra-sword",
+    armor: "ra-shield",
+    accessory: "ra-gem-pendant",
+    consumable: "ra-potion",
+    treasure: "ra-crystal-ball",
+  }
+  return iconMap[type] || "ra-crystal-ball"
 }
