@@ -28,15 +28,21 @@ testing_keywords = ['test', 'manual', 'ui', 'browser', 'click', 'interact', 'scr
 is_testing_related = any(kw in prompt for kw in testing_keywords)
 
 if triggered or (is_testing_related and 'todo' in prompt):
-    # Inject tool awareness reminder
+    # Inject tool awareness reminder using proper JSON output format
     reminder = """
 🔧 TOOL AWARENESS REMINDER:
 - Playwright MCP (mcp__playwright__*) can automate browser testing, UI interactions, screenshots, form filling, and page validation
 - You have FULL browser automation capabilities - do NOT claim manual testing is required
 - Check ALL available MCP tools before claiming something requires user intervention
 """
-    print(reminder)
+    output = {
+        "hookSpecificOutput": {
+            "hookEventName": "UserPromptSubmit",
+            "additionalContext": reminder
+        }
+    }
+    print(json.dumps(output))
     sys.exit(0)
 
-# No intervention needed
+# No intervention needed - no output
 sys.exit(0)
