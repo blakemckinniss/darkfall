@@ -63,3 +63,13 @@ Auto-generated log of all critical (76-100) documentation, technical debt, and n
 - ⭐85 Test Phase 1A portal progress tracking with real portal traversal
 - ⭐80 Test AI treasure choice generation and validate balance
 - ⭐78 Continue with Phase 2 (portal-scoped consumables) in follow-up session
+## 2025-11-02 17:40 - [DOCS]
+- 🔴80 Update ADR.md with ADR-014 (Portal-Scoped State Management & Buff Lifecycle) - Comprehensive architectural decisions for Phase 2+3 implementation validated by Zen MCP Opus 4 at 92% confidence
+- 🔴78 Update TODO.md with Zen MCP implementation guidance - Detailed Phase 2 implementation strategy with code snippets, edge case handling, and acceptance criteria
+
+## 2025-11-02 17:40 - [NEXT]
+- ⭐95 Implement Phase 2 Portal Session State Management - Add portalSessions: Record<locationId, PortalSession> to dungeon-crawler.tsx and GameState interface
+- ⭐90 Implement Phase 2 Buff Lifecycle Management - Update handleUseConsumable and handleChoice for portal-scoped buff apply/clear logic
+- ⭐85 Create 5 Portal-Scoped Consumables - Add Portal Anchor, Dimensional Ward, Explorer's Blessing, Cavern Blessing, Portal Resilience to canonical consumables
+- ⭐80 Implement Portal Buff UI - Add active buff display below progress bar in portal UI
+- ⭐80 Test Phase 2 with Playwright MCP - Automated testing for buff application, persistence, collapse cleanup, and multiple portal edge cases
