@@ -73,3 +73,9 @@ Auto-generated log of all critical (76-100) documentation, technical debt, and n
 - ⭐85 Create 5 Portal-Scoped Consumables - Add Portal Anchor, Dimensional Ward, Explorer's Blessing, Cavern Blessing, Portal Resilience to canonical consumables
 - ⭐80 Implement Portal Buff UI - Add active buff display below progress bar in portal UI
 - ⭐80 Test Phase 2 with Playwright MCP - Automated testing for buff application, persistence, collapse cleanup, and multiple portal edge cases
+
+## 2025-11-02 19:30 - [NEXT]
+- ⭐85 Test Phase 2 portal-scoped consumables via Playwright MCP - Open portal, use consumable, verify stats increase, exit portal, verify buff cleared
+- ⭐80 Implement Phase 3.2: Artifact drop logic - Create checkPortalExclusiveDrop() function, match portal theme, check globallyUnique, roll drop chance
+- ⭐75 Implement Phase 3.3: Artifact acquisition tracking - Update handleTreasureChoice, add to obtainedArtifacts, prevent duplicates
+

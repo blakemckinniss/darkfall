@@ -521,6 +521,7 @@ export function DungeonCrawler() {
     activeEffects,
     openLocations,
     portalSessions,
+    obtainedArtifacts,
     playerPortrait,
     generatedPortraits,
   ])
