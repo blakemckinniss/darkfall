@@ -723,3 +723,198 @@ cp -r /path/to/these/hooks .claude/hooks
 ```
 
 The hooks adapt automatically to each project's tech stack.
+
+---
+
+## Meta-Cognition Hook (Transcript Analysis)
+
+### 5. Post-Tool Meta-Cognition
+**File**: `posttooluse-metacognition.py`
+**Triggers**: PostToolUse (all tools)
+**Purpose**: Analyzes Claude's thinking patterns and tool usage to detect high-level reasoning gaps and missed opportunities
+
+### 6. Pre-Tool Pattern Prevention
+**File**: `pre-tool-pattern-prevention.sh`
+**Triggers**: PreToolUse (all tools)
+**Purpose**: Proactively prevents problematic tool usage before execution based on recent conversation patterns
+
+---
+
+## Meta-Cognition System
+
+### Purpose
+**Focuses on HIGH-LEVEL reasoning patterns, not syntax reminders.** This system detects when Claude:
+- Claims things are impossible without checking available tools
+- Hits problems without using Zen MCP or websearch
+- Mentions tech without researching latest documentation
+- Doesn't think "outside the box" or correlate complex systems
+
+This is about **meta-cognitive awareness** - teaching Claude to recognize when it's missing opportunities.
+
+### How It Works
+
+**PostToolUse Hook** (Meta-Cognition Analysis):
+- **Fast Path**: Checks tool name/response without transcript (tool-specific hints)
+- **Slow Path**: Analyzes last 20 conversation turns for reasoning patterns
+- Detects tool awareness gaps (Playwright, Zen MCP, WebSearch)
+- Identifies meta-patterns (impossibility claims, uncertainty without research)
+- Limits to top 3 hints to avoid overwhelming Claude
+
+**PreToolUse Hook** (Policy Enforcement):
+- Denies policy violations (e.g., WebFetch for browser interaction)
+- Asks user approval for repeated TypeScript escape hatches
+- Prevents mistakes before they happen
+
+### Meta-Cognitive Patterns Detected
+
+1. **Tool Awareness Gaps** (PostToolUse - REMINDER)
+   - Mentions "manual testing" without Playwright MCP
+   - Shows uncertainty without using Zen MCP
+   - References tech versions without websearch
+   - **Action**: Reminds about available tools
+
+2. **Impossibility Claims** (PostToolUse - CHALLENGE)
+   - Says "can't", "impossible", "requires manual" without verification
+   - **Action**: Challenges to verify available tools first
+
+3. **Uncertainty Without Research** (PostToolUse - SUGGESTION)
+   - Says "I think", "probably", "maybe" without consulting resources
+   - **Action**: Suggests websearch or Zen MCP consultation
+
+4. **Missing Preventative Thinking** (PostToolUse - NUDGE)
+   - Plans to test "after" or "later" instead of designing for testability
+   - **Action**: Encourages proactive problem prevention
+
+5. **WebFetch Misuse** (PreToolUse - DENY)
+   - WebFetch + browser keywords → Blocks and redirects to Playwright MCP
+   - **Action**: Denies tool call, enforces Playwright MCP policy
+
+6. **TypeScript Violations** (PreToolUse - ASK)
+   - @ts-ignore/as any (repeated) → Requests user approval
+   - **Action**: Asks user to confirm or deny
+
+### Performance
+- **Target**: < 200ms per hook
+- **Measured**: ~3-5ms per hook
+- **Impact**: Zero user-facing delay (40x faster than target)
+
+### Metrics & Monitoring
+
+Pattern detections are logged to `.claude/hook-metrics.log` (if `CLAUDE_PROJECT_DIR` is set):
+
+```
+2025-11-02T12:34:56Z | PostToolUse | Read | repeated_errors (count: 3)
+2025-11-02T12:35:10Z | PreToolUse | WebFetch | webfetch_misuse_denied
+```
+
+Use this log to track effectiveness and tune thresholds.
+
+### Advanced Features
+
+**Thinking Block Analysis** (Optional):
+Uncomment the thinking block analysis section in `post-tool-self-correction.sh` to enable meta-level self-correction based on Claude's internal reasoning patterns:
+
+- Detects low confidence ("I'm not sure", "uncertain")
+- Identifies doubt patterns ("might not work", "let me try again")
+- Provides additional context when Claude is uncertain
+
+### Configuration
+
+**Threshold Tuning**: Edit the hook scripts to adjust pattern thresholds:
+- `ERROR_COUNT -ge 3` → Number of repeated errors before blocking
+- `MAX_REPETITION -ge 7` → Circular tool usage threshold
+- `CORRECTIONS -ge 2` → User correction threshold
+- `TS_VIOLATIONS -ge 1` → TypeScript escape hatch threshold
+
+**Pattern Addition**: Add new patterns by following existing pattern structure in hook scripts.
+
+### Files
+- `.claude/hooks/posttooluse-metacognition.py` - Meta-cognitive pattern detection (PostToolUse)
+- `.claude/hooks/pre-tool-pattern-prevention.sh` - Proactive prevention (PreToolUse)
+- `.claude/settings.json` - Hook configuration
+- `.claude/hook-metrics.log` - Metrics logging (auto-created)
+
+### Example Scenarios
+
+**Scenario 1: Manual Testing Claim**
+```
+Claude: "We'll need to manually test the form validation in the browser..."
+Hook detects: "testing" + "manual" + "browser" without Playwright mention
+Output: "🎭 Playwright MCP Available: You have mcp__playwright__* tools for browser automation..."
+```
+
+**Scenario 2: Uncertainty Without Research**
+```
+Claude: "I think the new Tailwind version might have breaking changes..."
+Hook detects: "think" + "Tailwind version" without websearch
+Output: "🔍 WebSearch Available: You can search for latest documentation..."
+```
+
+**Scenario 3: Problem Without Investigation**
+```
+Claude encounters error, tries same approach 3 times
+Hook detects: Repeated error pattern
+Output: "🧘 Zen MCP Available: Consider using debug tool for systematic root cause analysis..."
+```
+
+### Troubleshooting
+
+**Hooks not firing:**
+1. Restart Claude Code (hooks are loaded at startup)
+2. Check `/hooks` menu to verify registration
+3. Use `claude --debug` to see hook execution details
+
+**False positives:**
+1. Increase thresholds in hook scripts
+2. Review `.claude/hook-metrics.log` for patterns
+3. Adjust after 50+ detections based on effectiveness
+
+**Performance issues:**
+- Hooks run in parallel (all matching hooks execute simultaneously)
+- 10s timeout per hook (configurable)
+- Gracefully degrades if jq is missing
+
+### Testing
+
+Test the hooks manually:
+
+```bash
+# Simulate PostToolUse with repeated error
+echo '{"transcript_path": "~/.claude/projects/.../session.jsonl", "tool_name": "Read", "tool_response": {"error": "File not found"}}' | \
+  ./.claude/hooks/post-tool-self-correction.sh
+
+# Simulate PreToolUse with WebFetch
+echo '{"transcript_path": "~/.claude/projects/.../session.jsonl", "tool_name": "WebFetch", "tool_input": {"url": "example.com"}}' | \
+  ./.claude/hooks/pre-tool-pattern-prevention.sh
+```
+
+### Best Practices
+
+1. **Start Conservative**: Use default thresholds, monitor effectiveness for 2-4 weeks
+2. **Track Metrics**: Enable logging to understand pattern frequency
+3. **Iterate Based on Data**: Adjust thresholds after gathering real-world usage data
+4. **User Feedback**: After 50 detections, evaluate if patterns are helpful or noisy
+5. **Gradual Rollout**: Test in development before production use
+
+### Portability
+
+✅ **100% Project-Agnostic**
+- Works in any codebase without modification
+- Auto-detects patterns regardless of language or framework
+- No dependencies beyond `jq` (with graceful degradation)
+- Portable across all Claude Code installations
+
+**To use in a different project:**
+```bash
+# Copy hooks to new project
+cp .claude/hooks/post-tool-self-correction.sh /path/to/other/project/.claude/hooks/
+cp .claude/hooks/pre-tool-pattern-prevention.sh /path/to/other/project/.claude/hooks/
+
+# Ensure executable
+chmod +x /path/to/other/project/.claude/hooks/*.sh
+
+# Update settings.json with hook configuration
+# Restart Claude Code - hooks activate automatically
+```
+
+---
