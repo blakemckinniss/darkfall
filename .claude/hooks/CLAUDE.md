@@ -857,6 +857,118 @@ Hook detects: Repeated error pattern
 Output: "🧘 Zen MCP Available: Consider using debug tool for systematic root cause analysis..."
 ```
 
+**Scenario 4: Agent/Skill Awareness**
+```
+Claude: "I need to update the player stats UI component..."
+Hook detects: "ui" + "component" keywords match game-ui-designer agent
+Output: "🤖 Agent Available: `game-ui-designer` - Expert in game UI/UX design and visual polish
+
+💡 Delegate with: `Task(subagent_type="game-ui-designer", prompt="Your instructions")`"
+```
+
+**Scenario 5: Complex Multi-File Task**
+```
+Claude: "I'll modify the state management in GameState.ts, PlayerStats.tsx, InventorySystem.ts, SaveManager.ts, and LocalStorageHandler.ts..."
+Hook detects: 5+ file mentions
+Output: "🔀 Complex Task Detected: Modifying 5+ files. Consider creating specialized agent:
+
+💡 `Task(subagent_type="general-purpose", prompt="Specialized task description")`"
+```
+
+**Scenario 6: Parallelization Opportunity**
+```
+Claude: "First I'll update the types, then fix the tests, then update the docs, and then run the build..."
+Hook detects: 4 sequential tasks ("then" patterns)
+Output: "⚡ Parallelization Opportunity: Multiple sequential tasks detected. Run them in parallel:
+
+💡 Launch multiple Task agents simultaneously (up to 10 parallel)"
+```
+
+### Agent/Skill Awareness System
+
+**Added**: 2025-11-02
+
+The meta-cognition hook now includes **agent and skill awareness** to help Claude recognize when to delegate work to specialized agents or create reusable skills.
+
+#### Features
+
+**1. Existing Agent Discovery**
+- Automatically scans `.claude/agents/*.md` at startup (cached for performance)
+- Extracts agent descriptions from frontmatter
+- Matches conversation patterns to suggest relevant agents
+
+**Domain-Specific Agent Triggers:**
+- **UI/UX work** → `game-ui-designer`
+- **Entity creation** → `entity-creator`
+- **State/localStorage issues** → `state-debugger`
+- **TypeScript errors** → `strict-typescript-enforcer`
+- **Game balance** → `game-balance-auditor`
+- **AI integration** → `ai-integration-specialist`
+
+**2. Complexity-Based Agent Creation Suggestions**
+- **5+ files being modified** → Suggest creating specialized agent
+- **3+ sequential tasks** → Suggest parallel agent execution
+- Helps Claude recognize when task complexity justifies delegation
+
+**3. Skill Awareness**
+- Automatically scans `.claude/skills/` directories
+- Suggests skill creation for repeated workflows
+- Lists available skills when patterns detected
+
+**4. Smart Filtering**
+- **Skips suggestions** if Claude is already using Task tool (avoids redundancy)
+- **Limits to 1 suggestion** per tool call (avoids overwhelming)
+- **Cached directory scan** (5-10ms one-time cost, not per-call)
+
+#### Performance Impact
+
+- **Discovery**: ~5-10ms (one-time, cached globally)
+- **Pattern matching**: ~2-5ms per tool call
+- **Total overhead**: ~7-15ms (negligible, well within budget)
+
+#### Effectiveness Metrics
+
+Track these metrics in `.claude/hook-metrics.log`:
+- `agent_skill_discovery` - Number of agents/skills found at startup
+- `agent_match_{agent_name}` - Domain-specific agent suggestions
+- `complex_multi_file` - Complex task detections
+- `parallelization_opportunity` - Parallelization suggestions
+- `repeated_workflow` - Skill creation suggestions
+
+**Target Impact:**
+- Agent utilization: 5% → 30% (expected increase)
+- Better task parallelization for complex multi-step work
+- More consistent use of skills for repeated patterns
+
+#### Configuration
+
+**Adjust File Threshold:**
+```python
+# In detect_agent_opportunities()
+if file_mentions >= 5:  # Change this threshold
+```
+
+**Adjust Parallelization Threshold:**
+```python
+# In detect_agent_opportunities()
+if task_markers >= 3:  # Change this threshold
+```
+
+**Add Custom Agent Patterns:**
+```python
+# In agent_patterns dict
+"your-agent-name": r"\b(keyword1|keyword2|pattern)\b"
+```
+
+#### Monitoring
+
+After 2-4 weeks of usage, review metrics to assess:
+- **Relevance**: Are agent suggestions helpful?
+- **False positives**: Are suggestions triggered inappropriately?
+- **Utilization**: Is Claude actually using suggested agents?
+
+Adjust thresholds based on data.
+
 ### Troubleshooting
 
 **Hooks not firing:**

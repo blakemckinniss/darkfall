@@ -25,6 +25,10 @@ METRICS_LOG = ".claude/hook-metrics.log"
 MAX_TRANSCRIPT_LINES = 400  # Keep it light to avoid timeouts
 RECENT_ANALYSIS_WINDOW = 20  # Last N conversation turns to analyze
 
+# Agent/Skill Discovery Cache
+AGENTS_CACHE = None
+SKILLS_CACHE = None
+
 # ============================================================================
 # Available Tool Detection Patterns
 # ============================================================================
@@ -275,6 +279,110 @@ def check_tool_specific_hints(tool_name: str, tool_input: Dict, tool_response: D
     return hints
 
 # ============================================================================
+# Agent/Skill Awareness
+# ============================================================================
+def discover_agents_and_skills() -> tuple:
+    """
+    Discover available agents and skills once per session (cached).
+    Returns (agents_dict, skills_list)
+    """
+    global AGENTS_CACHE, SKILLS_CACHE
+
+    if AGENTS_CACHE is not None:
+        return AGENTS_CACHE, SKILLS_CACHE
+
+    agents = {}
+    skills = []
+
+    # Scan agents directory
+    agents_dir = pathlib.Path(".claude/agents")
+    if agents_dir.exists():
+        for agent_file in agents_dir.glob("*.md"):
+            agent_name = agent_file.stem
+            try:
+                with agent_file.open('r', encoding='utf-8') as f:
+                    content = f.read(500)  # First 500 chars only
+                    # Extract description from frontmatter
+                    desc_match = re.search(r'description:\s*(.+)', content)
+                    agents[agent_name] = desc_match.group(1).strip() if desc_match else "Specialized agent"
+            except Exception:
+                agents[agent_name] = "Specialized agent"
+
+    # Scan skills directory
+    skills_dir = pathlib.Path(".claude/skills")
+    if skills_dir.exists():
+        for item in skills_dir.iterdir():
+            if item.is_dir():
+                skills.append(item.name)
+
+    AGENTS_CACHE = agents
+    SKILLS_CACHE = skills
+
+    if agents or skills:
+        log_pattern("agent_skill_discovery", len(agents) + len(skills))
+
+    return agents, skills
+
+def detect_agent_opportunities(analysis: Dict[str, Any]) -> List[str]:
+    """
+    Detect when to suggest agents or skills based on conversation patterns.
+    Returns list of agent/skill suggestions (limited to 1).
+    """
+    hints = []
+    agents, skills = discover_agents_and_skills()
+
+    if not agents and not skills:
+        return hints  # No agents/skills available
+
+    text = analysis["assistant_text"].lower()
+    thinking = analysis["assistant_thinking"].lower()
+    combined = text + " " + thinking
+
+    # Skip if already using Task tool
+    if "task tool" in combined or "subagent" in combined or "task(" in combined:
+        return hints
+
+    # Domain-specific agent matching
+    agent_patterns = {
+        "game-ui-designer": r"\b(ui|ux|interface|design|visual|component|layout|styling|responsive)\b",
+        "entity-creator": r"\b(create|add|new).*(entity|enemy|treasure|monster|loot|item)\b",
+        "state-debugger": r"\b(state|localStorage|persist|save|load|migration|serialization)\b",
+        "strict-typescript-enforcer": r"\b(type.?error|typescript|strict.?mode|type.?safety)\b",
+        "game-balance-auditor": r"\b(balance|stats|difficulty|progression|overpowered|underpowered)\b",
+        "ai-integration-specialist": r"\b(fal\.ai|groq|ai.*(endpoint|generation)|portrait|image.?gen)\b"
+    }
+
+    for agent_name, pattern in agent_patterns.items():
+        if agent_name in agents and re.search(pattern, combined, re.IGNORECASE):
+            desc = agents[agent_name]
+            log_pattern(f"agent_match_{agent_name}", 1)
+            hints.append(f"🤖 **Agent Available**: `{agent_name}` - {desc}\n\n💡 Delegate with: `Task(subagent_type=\"{agent_name}\", prompt=\"Your instructions\")`")
+            return hints  # Only suggest one agent per tool call
+
+    # Complexity-based suggestions for NEW agent creation
+    file_mentions = len(re.findall(r"\.(ts|tsx|js|jsx|css|json)", combined))
+    if file_mentions >= 5:  # Expert recommendation: 5+ files (not 3+)
+        log_pattern("complex_multi_file", file_mentions)
+        hints.append(f"🔀 **Complex Task Detected**: Modifying {file_mentions}+ files. Consider creating specialized agent:\n\n💡 `Task(subagent_type=\"general-purpose\", prompt=\"Specialized task description\")`")
+        return hints
+
+    # Parallelization opportunities
+    task_markers = len(re.findall(r"\b(then|and then|after that|next|also)\b", combined))
+    if task_markers >= 3:
+        log_pattern("parallelization_opportunity", task_markers)
+        hints.append("⚡ **Parallelization Opportunity**: Multiple sequential tasks detected. Run them in parallel:\n\n💡 Launch multiple Task agents simultaneously (up to 10 parallel)")
+        return hints
+
+    # Repeated workflow detection (suggest skill creation)
+    if re.search(r"\b(always|every.?time|whenever|repeatedly)\b.*\b(do|run|execute|perform)\b", combined, re.IGNORECASE):
+        log_pattern("repeated_workflow", 1)
+        skills_list = ', '.join(skills) if skills else 'None yet'
+        hints.append(f"🔄 **Repeated Workflow**: Consider creating a Skill to automate this pattern.\n\n💡 Available skills: {skills_list}")
+        return hints
+
+    return hints
+
+# ============================================================================
 # Logging
 # ============================================================================
 def log_pattern(pattern_name: str, count: int):
@@ -328,6 +436,9 @@ def main():
 
             # Detect repeated approaches
             hints.extend(detect_repeated_approaches(analysis))
+
+            # Detect agent/skill opportunities
+            hints.extend(detect_agent_opportunities(analysis))
 
         # Output result
         if hints:
