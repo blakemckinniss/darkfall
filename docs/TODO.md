@@ -386,9 +386,9 @@ All 5 portal-scoped consumables exist in `lib/entities/canonical/consumables.ts`
 
 - [x] **Portal Anchor** (rare) - 50g, scope: "portal", stability decay reduction
 - [x] **Dimensional Ward** (rare) - 45g, scope: "portal", +20 defense
-- [ ] **Explorer's Blessing** (uncommon) - 30g, scope: "portal", effect: +5 attack in portals
-- [ ] **Cavern Blessing** (epic) - 75g, scope: "portal", effect: Reduce stability decay 20%
-- [ ] **Portal Resilience** (uncommon) - 35g, scope: "portal", effect: +15 max health in portals
+- [x] **Explorer's Blessing** (uncommon) - 30g, scope: "portal", +5 attack
+- [x] **Cavern Blessing** (epic) - 75g, scope: "portal", stability decay reduction
+- [x] **Portal Resilience** (uncommon) - 35g, scope: "portal", +15 health
 
 **Implementation:**
 ```typescript
