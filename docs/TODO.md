@@ -301,98 +301,175 @@ From POA analysis (10 mechanics evaluated), these 4 were selected:
 
 ---
 
-## 🔄 DEFERRED: Phases 2 & 3 (Future Implementation)
+## 🔄 READY FOR IMPLEMENTATION: Phases 2 & 3
 
-**Decision:** Ship Phase 1 as complete. Defer Phases 2+3 to future session.
+**Status:** ✅ Architecture Analysis Complete (Zen MCP Opus 4 - 92% Confidence)
+**Decision:** Proceed with Phase 2+3 implementation following validated architectural guidance
+**Updated:** 2025-11-02 17:30 UTC
+**Commits:**
+- a84f64b - "docs: Update TODO.md with Phase 1 testing results and Phase 2 schema extensions"
+- 0c43549 - "fix: Add scope field to existing consumables for TypeScript compliance"
 
-**Rationale:**
-- Phase 1 provides significant standalone value (progress tracking + AI treasure choices + themed encounters)
-- Phase 1 is complete, tested, and polished
-- Phases 2+3 require 6+ hours of complex component modification
-- Risk of shipping incomplete features > benefit of partial implementation
-- Schema foundations for Phase 2 are complete and ready
+**Why Proceed Now:**
+- Phase 1 complete, tested, and stable foundation
+- Schema extensions complete and validated (scope, portalRestriction, PortalBuff, PortalSession)
+- Comprehensive architectural analysis confirms no major refactoring needed
+- Clear implementation patterns identified with 92% confidence
+- 6-8 hour estimated implementation time (manageable)
 
-### Phase 2: Portal-Scoped Consumables 🔵 DEFERRED (Est: 3-4 hours)
+**Architectural Validation (Zen MCP Analysis):**
+- ✅ Current architecture can support Phase 2+3 without refactoring
+- ✅ Monolithic component pattern (3100 lines) acceptable for solo dev scope
+- ✅ React hooks + localStorage persistence suitable
+- ✅ Multiple portals already supported - good foundation
+- ✅ Security appropriate for localhost single-player game
+- ✅ No overengineering detected - appropriately minimal
 
-**Priority:** MEDIUM - Adds strategic depth, requires careful state management
-**Dependencies:** Phase 1A & 1B TESTED
-**Files:** `lib/entities/schemas.ts`, `lib/game-engine.ts`, `components/dungeon-crawler.tsx`, `lib/entities/canonical/consumables.ts`
+**Key Implementation Patterns (Expert-Validated):**
+1. **Portal Session State**: `portalSessions: Record<locationId, PortalSession>` (O(1) lookup)
+2. **Multiple Portal Edge Case**: "Next Entered Portal" pattern with pending buffs queue
+3. **Buff Persistence**: Save in localStorage for roguelike continuity
+4. **Buff Lifecycle**: Apply on portal entry, clear on portal collapse
+5. **Artifact Drops**: Integrate with handleTreasureChoice (treasure events)
+6. **UI Integration**: Buffs below progress bar, artifacts in new developer tab
+7. **Testing**: Use Playwright MCP (already established in Phase 1)
+
+### Phase 2: Portal-Scoped Consumables ✅ READY (Est: 3-4 hours)
+
+**Priority:** HIGH - Foundation for Phase 3, adds strategic depth
+**Dependencies:** ✅ Phase 1A & 1B TESTED | ✅ Schema Extensions Complete
+**Files:** `lib/game-engine.ts`, `components/dungeon-crawler.tsx`, `lib/game-state.ts`, `lib/entities/canonical/consumables.ts`
+
+**Implementation Strategy (Zen MCP Validated):**
+- Use `portalSessions: Record<locationId, PortalSession>` for O(1) buff lookup
+- Apply buffs to activeLocation when consumable used
+- Persist portal sessions in localStorage (roguelike continuity)
+- Clear buffs on portal collapse (filter by locationId)
 
 **Tasks:**
 
-#### 1. Schema Extension (30 mins)
-- [ ] Extend `consumableEffect` schema with `scope` field:
-  ```typescript
-  scope: z.enum(["global", "portal", "encounter"]).default("global")
-  ```
-- [ ] Add optional `portalRestriction?: string` (specific portal theme/ID)
-- [ ] Update consumable validation functions
-- [ ] Add TypeScript types for new fields
+#### 1. Schema Extension ✅ COMPLETE
+- [x] Extend `consumableEffect` schema with `scope` field (commit a84f64b)
+- [x] Add optional `portalRestriction?: string` (commit a84f64b)
+- [x] Add TypeScript types (ActiveEffect.scope, PortalBuff, PortalSession) (commit a84f64b)
+- [x] Fix existing consumables to include scope: "global" (commit 0c43549)
 
-#### 2. Portal Session Tracking (1 hour)
-- [ ] Create `PortalSession` interface:
+#### 2. Portal Session Tracking (1 hour) - STATE MANAGEMENT
+- [ ] Add `portalSessions` state in dungeon-crawler.tsx:
   ```typescript
-  interface PortalSession {
-    locationId: string;
-    enteredAt: number;
-    activeBuffs: PortalBuff[];
-    roomsVisited: Set<string>;
+  const [portalSessions, setPortalSessions] = useState<Record<string, PortalSession>>({})
+  ```
+- [ ] Add `portalSessions` to GameState interface (lib/game-state.ts)
+- [ ] Load portalSessions from localStorage on mount
+- [ ] Save portalSessions to localStorage (debounced, with openLocations)
+- [ ] **Key Pattern**: Use activeLocation as key when applying buffs
+- [ ] Validate portal IDs on load (remove sessions for closed portals)
+
+#### 3. Buff Lifecycle Management (1 hour) - APPLY & CLEAR
+- [ ] Update `handleUseConsumable` (components/dungeon-crawler.tsx:1203):
+  ```typescript
+  if (effect.scope === "portal") {
+    if (!activeLocation || activeLocation === "void") {
+      addLogEntry("Portal-scoped consumables only work in portals!", item.name, item.rarity)
+      return
+    }
+    // Create PortalBuff and add to portalSessions[activeLocation].activeBuffs
   }
   ```
-- [ ] Add portal session state management
-- [ ] Track active portal ID in game state
-- [ ] Create `activatePortalBuff(buff, portalId)` function
-- [ ] Create `clearPortalBuffs(portalId)` function
-- [ ] Hook into portal enter/exit/collapse events
+- [ ] Apply portal buffs to player stats (add to existing activeEffects calculation)
+- [ ] **Clear buffs on portal collapse** - Update handleChoice:739-750:
+  ```typescript
+  if (roomLimitReached || stabilityDepleted) {
+    // Remove portal session when portal collapses
+    setPortalSessions(prev => {
+      const next = {...prev}
+      delete next[activeLocation]
+      return next
+    })
+  }
+  ```
+- [ ] Test: Buff only active in specific portal
+- [ ] Test: Buff cleared on collapse
+- [ ] Test: Multiple portals don't share buffs
 
-#### 3. Consumable Handling (45 mins)
-- [ ] Update `handleUseConsumable` to check scope
-- [ ] For "portal" scope:
-  - [ ] Validate portal is active
-  - [ ] Apply buff to portal session
-  - [ ] Add buff to activePortalBuffs array
-  - [ ] Update player stats temporarily
-- [ ] Clear portal buffs when:
-  - [ ] Portal exits normally
-  - [ ] Portal collapses (0% stability or room limit)
-  - [ ] Player switches portals
-- [ ] Test buff stacking (newer overwrites, no stacking)
+#### 4. Create Portal-Scoped Consumables (45 mins) - CONTENT CREATION
+Add 5 new portal-scoped consumables to `lib/entities/canonical/consumables.ts`:
 
-#### 4. Create Portal-Scoped Consumables (45 mins)
-**Note:** `lib/entities/canonical/consumables.ts` exists with 8+ current consumables. Add 5 new portal-scoped ones:
+- [ ] **Portal Anchor** (rare) - 50g, scope: "portal", effect: Reduce stability decay 15%
+- [ ] **Dimensional Ward** (rare) - 45g, scope: "portal", effect: +20 defense in portals
+- [ ] **Explorer's Blessing** (uncommon) - 30g, scope: "portal", effect: +5 attack in portals
+- [ ] **Cavern Blessing** (epic) - 75g, scope: "portal", effect: Reduce stability decay 20%
+- [ ] **Portal Resilience** (uncommon) - 35g, scope: "portal", effect: +15 max health in portals
 
-- [ ] Add to `lib/entities/canonical/consumables.ts`:
-  - [ ] **Portal Anchor** - +15% stability retention
-  - [ ] **Dimensional Ward** - Reduce damage 20% in portals
-  - [ ] **Explorer's Blessing** - +10% treasure find
-  - [ ] **Cavern Blessing** - +20% stability decay resistance
-  - [ ] **Portal Resilience** - +10 max health while in portal
-- [ ] Set appropriate rarities and values
-- [ ] Add clear descriptions indicating portal-scoped effect
+**Implementation:**
+```typescript
+{
+  id: "consumable:portal_anchor",
+  entityType: "consumable",
+  name: "Portal Anchor",
+  type: "consumable",
+  value: 50,
+  rarity: "rare",
+  icon: "ra-anchor",
+  consumableEffect: {
+    type: "temporary",
+    duration: 999999, // Active until portal collapse
+    statChanges: { /* stability decay reduction - handle specially */ },
+    scope: "portal",
+  },
+  description: "Reduces portal stability decay by 15%. Active only in current portal.",
+  source: "canonical",
+  version: 1,
+  sessionOnly: false,
+  tags: ["portal", "stability", "buff"],
+}
+```
 
-#### 5. UI Indicators (30 mins)
-- [ ] Add active portal buffs display to portal UI
-- [ ] Show "Active in: [Portal Name]" indicator
-- [ ] Display buff countdown/status
-- [ ] Add visual feedback when buff applies/expires
-- [ ] Update consumable tooltips to show scope
+#### 5. UI Integration (30 mins) - BUFF DISPLAY
+- [ ] Add portal buff display **below progress bar** (components/dungeon-crawler.tsx:1822+):
+  ```typescript
+  {/* Active Portal Buffs */}
+  {portalsessions[activeLocation]?.activeBuffs.length > 0 && (
+    <div className="mt-2 space-y-1">
+      <div className="text-xs text-muted-foreground uppercase tracking-wider">
+        Active Buffs
+      </div>
+      {portalSessions[activeLocation].activeBuffs.map(buff => (
+        <div key={buff.id} className="text-xs flex items-center gap-2">
+          <span className={`${getRarityColor(buff.rarity)}`}>{buff.name}</span>
+          <span className="text-muted-foreground">
+            +{buff.statChanges.attack || buff.statChanges.defense || "effect"}
+          </span>
+        </div>
+      ))}
+    </div>
+  )}
+  ```
+- [ ] Update consumable modal to show scope badge
+- [ ] Add visual feedback (sparkle animation) when buff applies
+- [ ] Test UI on different screen sizes
 
-**Critical Implementation Notes:**
-- [ ] **Fix from Expert:** Handle edge case of multiple open portals
-- [ ] **Fix from Expert:** Buff applies to "next entered portal" if multiple open
-- [ ] Test buff persistence through page reload
-- [ ] Test buff cleanup on unexpected portal collapse
+**Critical Implementation Notes (Zen MCP Validated):**
+- ✅ **Edge Case**: Multiple open portals - Apply buff to activeLocation (current portal)
+- ✅ **Persistence**: Save portalSessions in localStorage for roguelike continuity
+- ✅ **Cleanup**: Delete portalSessions[locationId] on portal collapse
+- [ ] Test: Buff persists through page reload
+- [ ] Test: Buff cleared on unexpected portal collapse
+- [ ] Test: Multiple portals don't share buffs
 
 **Acceptance Criteria:**
-- [ ] Portal-scoped consumables can be used
-- [ ] Buffs only active in specified portal
-- [ ] Clear UI shows active portal buffs
-- [ ] Buffs clear on portal exit/collapse
-- [ ] No bugs with multiple simultaneous portals
+- [ ] Portal-scoped consumables can be used (via inventory modal)
+- [ ] Buffs only active in specified portal (check activeLocation)
+- [ ] Clear UI shows active portal buffs (below progress bar)
+- [ ] Buffs clear on portal collapse (delete session on collapse)
+- [ ] Buffs persist across page reload (localStorage)
+- [ ] Multiple portals don't share buffs (Record<locationId, Session>)
+- [ ] Using portal consumable in Void shows error message
+- [ ] TypeScript strict mode compliance maintained
 
 ---
 
-### Phase 3: Portal-Exclusive Artifacts 🔵 POLISH (3 hours + content)
+### Phase 3: Portal-Exclusive Artifacts ✅ READY (3-4 hours)
 
 **Priority:** POLISH - Long-term replayability, higher maintenance
 **Dependencies:** Phase 1B & Phase 2 TESTED

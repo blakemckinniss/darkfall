@@ -703,6 +703,274 @@ See `/docs/TODO.md` for comprehensive implementation checklist with:
 
 ---
 
+## ADR-014: Portal-Scoped State Management & Buff Lifecycle
+
+**Status:** ✅ Accepted (Validated by Zen MCP Opus 4 - 92% Confidence)
+**Date:** 2025-11-02
+**Context:** Phase 2 & 3 Implementation (Portal-Scoped Consumables + Portal-Exclusive Artifacts)
+**Related:** ADR-013 (Portal Traversal Enhancement)
+
+### Problem Statement
+
+Phase 2 requires portal-scoped consumables (temporary buffs active only within specific portal instances), and Phase 3 requires portal-exclusive artifacts (rare themed items that only drop in specific portal types). The architecture must support:
+
+1. **Portal Session Tracking** - Track which buffs are active in which portals
+2. **Multiple Portal Edge Case** - Handle scenario where player has multiple portals open simultaneously
+3. **Buff Lifecycle Management** - Apply buffs on consumable use, clear on portal collapse
+4. **Persistence Strategy** - Buffs should persist across page reload (roguelike continuity)
+5. **Artifact Uniqueness** - Track obtained artifacts globally to prevent duplicates
+6. **Drop Logic Integration** - Where to check for artifact drops without disrupting gameplay
+
+### Architectural Analysis (Zen MCP)
+
+Comprehensive analysis performed using Zen MCP (anthropic/claude-opus-4) with websearch enabled. Analysis examined:
+- Current state management pattern (React hooks + localStorage)
+- Component size and maintainability (3100 lines approaching threshold)
+- Scalability characteristics (multiple portals, localStorage limits)
+- Security posture (client-side state, localhost game)
+- Complexity assessment (no overengineering, appropriately minimal)
+
+**Key Findings:**
+- ✅ Architecture can support Phase 2+3 without major refactoring
+- ✅ Monolithic component pattern acceptable for solo developer scope
+- ✅ Multiple portals already supported via `openLocations` array
+- ✅ Schema extensions complete (scope, portalRestriction, PortalBuff, PortalSession)
+- ⚠️ Component approaching 3500+ lines after implementation (monitor size)
+
+### Decision: Portal Session State Pattern
+
+**Chosen Approach:** `portalSessions: Record<locationId, PortalSession>`
+
+**Implementation:**
+```typescript
+// State
+const [portalSessions, setPortalSessions] = useState<Record<string, PortalSession>>({})
+
+// PortalSession interface (lib/game-engine.ts)
+interface PortalSession {
+  locationId: string
+  enteredAt: number
+  activeBuffs: PortalBuff[]
+  roomsVisited: number
+}
+
+// PortalBuff interface (lib/game-engine.ts)
+interface PortalBuff {
+  id: string
+  name: string
+  statChanges: Stats
+  consumableId: string
+  appliedAt: number
+  rarity: Rarity
+}
+```
+
+**Rationale:**
+- **O(1) lookup** - Fast access to portal buffs by locationId
+- **Clean separation** - Portal state separate from openLocations
+- **Easy persistence** - Serialize Record<string, PortalSession> to localStorage
+- **Simple cleanup** - Delete portalSessions[locationId] on collapse
+
+**Alternatives Considered:**
+1. **Embedded in Location.portalData** - Would couple buff state to location state, harder to manage lifecycle
+2. **Separate array: PortalSession[]** - O(n) lookup, unnecessary overhead
+3. **Global buff queue** - Ambiguous which portal gets buff, complex edge cases
+
+### Decision: Multiple Portal Edge Case Handling
+
+**Chosen Approach:** "Active Location" Pattern
+
+When player uses portal-scoped consumable:
+- Check if `activeLocation` exists and is not "void"
+- Apply buff to `portalSessions[activeLocation]`
+- Show error if used outside portal: "Portal-scoped consumables only work in portals!"
+
+**Rationale:**
+- **Clear semantics** - Buff applies to portal you're currently in
+- **Player intent** - When in portal, player wants buff for that portal
+- **No ambiguity** - activeLocation always defined when in portal
+- **Simple implementation** - No need for buff queue or selection UI
+
+**Alternatives Considered:**
+1. **Next Entered Portal** - Complex state (pending buffs queue), unintuitive UX
+2. **Ask User** - Adds friction, breaks flow, unnecessary for common case
+3. **Most Recent Portal** - Ambiguous, could apply to wrong portal
+
+### Decision: Buff Persistence Strategy
+
+**Chosen Approach:** localStorage persistence with portal validation
+
+**Implementation:**
+```typescript
+// GameState interface (lib/game-state.ts)
+interface GameState {
+  // ... existing fields
+  portalSessions: Record<string, PortalSession>
+}
+
+// On load: validate portal IDs still exist
+useEffect(() => {
+  const savedState = loadGameState()
+  if (savedState?.portalSessions) {
+    // Remove sessions for portals that no longer exist
+    const validSessions = Object.fromEntries(
+      Object.entries(savedState.portalSessions)
+        .filter(([locationId]) =>
+          savedState.openLocations.some(loc => loc.id === locationId)
+        )
+    )
+    setPortalSessions(validSessions)
+  }
+}, [])
+```
+
+**Rationale:**
+- **Roguelike continuity** - Buffs persist across page reload
+- **State recovery** - Player doesn't lose progress on refresh
+- **Cleanup validation** - Remove stale sessions on load
+- **Consistent with patterns** - Matches existing localStorage usage
+
+**Trade-offs:**
+- +Storage overhead (~50KB per portal session)
+- +Validation logic on load
+- -Risk of stale data (mitigated by validation)
+
+### Decision: Buff Lifecycle Hooks
+
+**Apply:** On consumable use in handleUseConsumable
+**Clear:** On portal collapse in handleChoice
+
+**Implementation:**
+```typescript
+// Apply (handleUseConsumable)
+if (effect.scope === "portal") {
+  if (!activeLocation || activeLocation === "void") {
+    addLogEntry("Portal-scoped consumables only work in portals!")
+    return
+  }
+  const buff: PortalBuff = {
+    id: Math.random().toString(36).substr(2, 9),
+    name: item.name,
+    statChanges: effect.statChanges,
+    consumableId: item.id,
+    appliedAt: Date.now(),
+    rarity: item.rarity,
+  }
+  setPortalSessions(prev => ({
+    ...prev,
+    [activeLocation]: {
+      ...prev[activeLocation],
+      activeBuffs: [...(prev[activeLocation]?.activeBuffs || []), buff],
+    }
+  }))
+}
+
+// Clear (handleChoice - on portal collapse)
+if (roomLimitReached || stabilityDepleted) {
+  setTimeout(() => {
+    setOpenLocations(current => current.filter(l => l.id !== activeLocation))
+    setPortalSessions(prev => {
+      const next = {...prev}
+      delete next[activeLocation!]
+      return next
+    })
+    setActiveTab("portal")
+    setActiveLocation(null)
+  }, 1000)
+}
+```
+
+**Rationale:**
+- **Single responsibility** - Apply in consumable handler, clear in collapse logic
+- **Atomic updates** - State changes happen together
+- **No memory leaks** - Sessions deleted when portal closes
+- **TypeScript safe** - Non-null assertion after validation
+
+### Decision: Artifact Drop Integration
+
+**Chosen Approach:** Integrate with handleTreasureChoice (treasure events)
+
+**Implementation:**
+```typescript
+// In handleTreasureChoice after treasure selection
+const currentLoc = openLocations.find(loc => loc.id === activeLocation)
+if (currentLoc?.portalData) {
+  const artifactChance = checkPortalExclusiveDrop(currentLoc, obtainedArtifacts)
+  if (artifactChance) {
+    // Add artifact to loot
+    // Mark as obtained in global tracking
+  }
+}
+```
+
+**Rationale:**
+- **Natural integration** - Treasure events already handle loot
+- **Thematic fit** - Artifacts are special treasures
+- **Minimal disruption** - No new event types needed
+- **Player expectation** - Artifacts appear alongside treasure choices
+
+**Alternatives Considered:**
+1. **Every room** - Too frequent, diminishes rarity
+2. **Final room only** - Too restrictive, punishes early collapse
+3. **Separate artifact events** - Adds complexity, breaks flow
+
+### Decision: UI Integration Points
+
+**Portal Buffs:** Below portal progress bar (components/dungeon-crawler.tsx:1822+)
+**Artifact Collection:** New developer tab "Artifacts" (matches existing pattern)
+
+**Rationale:**
+- **Contextual placement** - Buffs shown where portal info is
+- **Consistent patterns** - Follows existing UI structure
+- **No clutter** - Separate concerns (buffs in portal, collection in dev)
+- **Easy to implement** - Extends existing layouts
+
+### Consequences
+
+**Positive:**
+- Clear state management pattern (Record<locationId, Session>)
+- No ambiguity in multiple portal scenarios
+- Buff persistence improves roguelike experience
+- Clean lifecycle management (apply/clear)
+- Natural artifact integration with treasure system
+- UI follows established patterns
+
+**Negative:**
+- Component size increases ~500 lines (3100 → 3600)
+- localStorage overhead (~50KB per session)
+- Additional validation logic on load
+- Must monitor component size threshold
+
+**Risks & Mitigations:**
+- **Component size**: Monitor, extract custom hooks if exceeds 3500 lines
+- **localStorage limit**: Validate sessions on load, cleanup on collapse
+- **State corruption**: Robust validation, fallback to empty sessions
+- **Multiple portals**: Clear semantics (activeLocation), documented edge cases
+
+### Testing Strategy
+
+**Playwright MCP Automated Testing:**
+1. Use portal-scoped consumable → verify buff applies to current portal
+2. Open multiple portals → verify buffs don't cross-contaminate
+3. Portal collapse → verify buff cleared
+4. Page reload → verify buff persists
+5. Use consumable in Void → verify error message
+6. Artifact drops → verify theme matching and uniqueness
+
+**Manual Testing:**
+- Balance portal-scoped consumable effectiveness
+- Tune artifact drop rates (10-30% baseline)
+- Validate UI responsiveness (mobile/tablet)
+
+### References
+
+- **Zen MCP Analysis:** 2025-11-02 (anthropic/claude-opus-4, 92% confidence)
+- **Related ADR:** ADR-013 (Portal Traversal Enhancement)
+- **Files Modified:** lib/game-engine.ts, lib/game-state.ts, components/dungeon-crawler.tsx
+- **Commits:** a84f64b (schema extensions), 0c43549 (TypeScript fixes)
+
+---
+
 ## Future ADRs to Consider
 
 As the project evolves, document decisions for:
