@@ -80,7 +80,39 @@ export interface TreasureChoice {
   description: string
 }
 
+// Event type for discriminating different event categories
+export type EventType = "combat" | "shop" | "shrine" | "treasure" | "encounter"
+
+// Shop item structure for shop events
+export interface ShopItem {
+  item: InventoryItem
+  price: number
+  stock: number
+}
+
+// Shrine offer structure for shrine events
+export interface ShrineOffer {
+  costType: "health" | "gold" | "item"
+  costAmount: number
+  costItemType?: ItemType
+  boonDescription: string
+  boonEffect: {
+    healthChange?: number
+    goldChange?: number
+    itemGained?: InventoryItem
+    buffEffect?: ActiveEffect
+  }
+  baneDescription: string
+  baneEffect: {
+    healthChange?: number
+    goldChange?: number
+    itemLost?: string
+  }
+  boonChance: number // 0-100 percentage
+}
+
 export interface GameEvent {
+  eventType: EventType // NEW: Discriminator for event type
   description: string
   entity?: string
   entityRarity?: Rarity
@@ -93,6 +125,8 @@ export interface GameEvent {
     exp?: number
     entrances?: number
     icon?: string
+    health?: number
+    attack?: number
   }
   choices: {
     text: string
@@ -109,6 +143,18 @@ export interface GameEvent {
     }
   }[]
   treasureChoices?: TreasureChoice[]
+
+  // Event-specific optional fields
+  shopInventory?: ShopItem[] // For shop events
+  shrineOffer?: ShrineOffer // For shrine events
+  trapRisk?: {
+    // For treasure events with traps
+    failChance: number
+    penalty: {
+      healthChange?: number
+      goldChange?: number
+    }
+  }
 }
 
 // Location flavor text for encounters
@@ -142,6 +188,7 @@ export function generateEvent(playerStats: PlayerStats, _inventory: InventoryIte
     }
 
     return {
+      eventType: "combat",
       description: `A ${enemy.name} (${enemy.health} HP, ${enemy.attack} ATK) appears in ${locationArr}.`,
       entity: enemy.name,
       entityRarity: enemy.rarity,
@@ -204,6 +251,7 @@ export function generateEvent(playerStats: PlayerStats, _inventory: InventoryIte
       }
 
       return {
+        eventType: "treasure",
         description: `${consumable.name} found in ${locationArr}.`,
         entity: consumable.name,
         entityRarity: consumable.rarity,
@@ -270,6 +318,7 @@ export function generateEvent(playerStats: PlayerStats, _inventory: InventoryIte
       }
 
       return {
+        eventType: "treasure",
         description: `${mapItem.name} found in ${locationArr}. Shows route to ${mapItem.locationName} (${mapItem.entrances} entrances).`,
         entity: mapItem.name,
         entityRarity: mapItem.rarity,
@@ -324,6 +373,7 @@ export function generateEvent(playerStats: PlayerStats, _inventory: InventoryIte
       }
 
       return {
+        eventType: "treasure",
         description: `${treasure.name} found in ${locationArr}.`,
         entity: treasure.name,
         entityRarity: treasure.rarity,
@@ -394,6 +444,7 @@ export function generateEvent(playerStats: PlayerStats, _inventory: InventoryIte
     if (!fallback || fallback.entityType !== "encounter") {
       // Last resort: generate a simple generic event
       return {
+        eventType: "encounter",
         description: "Crossroads ahead.",
         entity: "crossroads",
         entityRarity: "common",
@@ -446,6 +497,7 @@ export function generateEvent(playerStats: PlayerStats, _inventory: InventoryIte
   })
 
   return {
+    eventType: "encounter",
     description: encounter.description,
     entity: encounter.name,
     entityRarity: encounter.rarity,

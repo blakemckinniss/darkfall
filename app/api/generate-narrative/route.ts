@@ -32,7 +32,42 @@ interface NarrativeTreasureChoice {
   healthRestore?: number
 }
 
+interface NarrativeShopItem {
+  itemName: string
+  itemType: "weapon" | "armor" | "accessory" | "consumable"
+  itemStats?: {
+    attack?: number
+    defense?: number
+    health?: number
+  }
+  itemRarity: "common" | "uncommon" | "rare" | "epic" | "legendary"
+  price: number
+  stock: number
+  description: string
+}
+
+interface NarrativeShrineOffer {
+  costType: "health" | "gold"
+  costAmount: number
+  boonDescription: string
+  boonEffect: {
+    healthChange?: number
+    goldChange?: number
+    itemName?: string
+    itemType?: "weapon" | "armor" | "accessory" | "consumable"
+    itemStats?: { attack?: number; defense?: number; health?: number }
+    itemRarity?: "common" | "uncommon" | "rare" | "epic" | "legendary"
+  }
+  baneDescription: string
+  baneEffect: {
+    healthChange?: number
+    goldChange?: number
+  }
+  boonChance: number
+}
+
 interface NarrativeData {
+  eventType: "combat" | "shop" | "shrine" | "treasure" | "encounter"
   description: string
   entity: string
   entityRarity: string
@@ -45,6 +80,15 @@ interface NarrativeData {
     attack?: number
     gold?: number
     exp?: number
+  }
+  shopInventory?: NarrativeShopItem[]
+  shrineOffer?: NarrativeShrineOffer
+  trapRisk?: {
+    failChance: number
+    penalty: {
+      healthChange?: number
+      goldChange?: number
+    }
   }
 }
 
@@ -109,124 +153,164 @@ export async function POST(request: NextRequest) {
       ENCOUNTER_THEMES[Math.floor(Math.random() * ENCOUNTER_THEMES.length)] ?? ENCOUNTER_THEMES[0]
     const location =
       LOCATION_HINTS[Math.floor(Math.random() * LOCATION_HINTS.length)] ?? LOCATION_HINTS[0]
-    const temperature = 0.7 + Math.random() * 0.2 // Vary between 0.7-0.9
+    const temperature = 0.85 + Math.random() * 0.1 // Vary between 0.85-0.95 for high variety
 
     const locationContext = portalContext
       ? `You are generating an encounter for "${portalContext.theme}" (${portalContext.rarity} portal, risk level: ${portalContext.riskLevel}/10).
 Encounters should match the portal's theme and difficulty.`
       : `You are generating an encounter for "The Void" - a mysterious, unstable dimension.`
 
-    const systemPrompt = `You are an entity-driven encounter generator for a dungeon crawler.
+    const systemPrompt = `You are a diverse event generator for a dungeon crawler roguelike.
 ${locationContext}
-Generate encounters that prioritize mechanical information over narrative prose.
+Generate varied events that prioritize mechanical clarity and gameplay diversity.
 Respond ONLY with valid JSON matching this exact structure (no markdown, no extra text):
+
+BASE STRUCTURE (ALL EVENT TYPES):
 {
+  "eventType": "combat" | "shop" | "shrine" | "treasure" | "encounter",
   "description": "string (ENTITY-FIRST: state what entity appears, its stats/threat level, minimal location context)",
   "entity": "string (clear, concise entity name - 2-3 words max)",
   "entityRarity": "common" | "uncommon" | "rare" | "epic" | "legendary",
   "entityType": "enemy" | "npc" | "object" | "creature" | "phenomenon",
-  "color": "string (optional, Tailwind text color class for thematic entities - e.g., 'text-red-500' for fire, 'text-cyan-400' for ice)",
+  "color": "string (optional, Tailwind text color class)",
   "entityData": {
-    "health": number (optional, for enemies: 20-120 based on rarity),
-    "attack": number (optional, for enemies: 5-30 based on rarity),
-    "gold": number (optional, reward amount: 10-150),
-    "exp": number (optional, experience: 15-100)
+    "health": number (optional, for combat),
+    "attack": number (optional, for combat),
+    "gold": number (optional, reward/cost amount),
+    "exp": number (optional, experience)
   },
+  "choices": [ ... ], // Always required, format varies by eventType
+
+  // EVENT-SPECIFIC FIELDS (add only for specific eventType):
+  "treasureChoices": [...], // For combat/treasure events (optional, 40% chance)
+  "shopInventory": [...],   // For shop events (required)
+  "shrineOffer": {...},     // For shrine events (required)
+  "trapRisk": {...}         // For treasure events with traps (optional, 30% chance)
+}
+
+════════════════════════════════════════════════════════════════
+EVENT TYPE 1: COMBAT (Aggressive Enemy Encounters)
+════════════════════════════════════════════════════════════════
+{
+  "eventType": "combat",
+  "entity": "Void Wraith",
+  "entityRarity": "rare",
+  "entityType": "enemy",
+  "description": "A Void Wraith (65 HP, 18 ATK) blocks your path in the fractured hall.",
+  "entityData": { "health": 65, "attack": 18, "gold": 50, "exp": 55 },
   "choices": [
-    {
-      "text": "string (direct action verb + target)",
-      "outcome": {
-        "message": "string (state mechanical result directly - what stats changed and why)",
-        "healthChange": number (optional, -50 to 50),
-        "goldChange": number (optional, -30 to 50),
-        "experienceChange": number (optional, 0 to 60)
-      }
-    }
+    { "text": "Attack the Wraith", "outcome": { "message": "Wraith dealt 18 damage. You dealt 20 damage. Gained 55 exp.", "healthChange": -18, "experienceChange": 55 }},
+    { "text": "Use defensive stance", "outcome": { "message": "Blocked 10 damage. Wraith dealt 8 damage.", "healthChange": -8, "experienceChange": 10 }},
+    { "text": "Attempt to flee", "outcome": { "message": "Escaped but took 5 damage in retreat.", "healthChange": -5, "experienceChange": 0 }}
   ],
-  "treasureChoices": [ // OPTIONAL - for any encounter (30% rate) - loot drops for enemies, treasures for objects
-    {
-      "type": "item" | "gold" | "health",
-      "description": "string (clear description of reward)",
-      "itemName": "string (only if type=item)",
-      "itemType": "weapon" | "armor" | "accessory" | "consumable" (only if type=item),
-      "itemStats": { "attack": number, "defense": number, "health": number } (only if type=item),
-      "itemRarity": "common" | "uncommon" | "rare" | "epic" | "legendary" (only if type=item),
-      "gold": number (only if type=gold, range: 20-100 based on rarity),
-      "healthRestore": number (only if type=health, range: 15-40)
-    }
+  "treasureChoices": [ // OPTIONAL - 40% chance
+    { "type": "item", "itemName": "Void Blade", "itemType": "weapon", "itemStats": {"attack": 12}, "itemRarity": "rare", "description": "Dark blade (+12 ATK)" },
+    { "type": "gold", "gold": 60, "description": "60 gold coins" }
   ]
 }
 
-MANDATORY STYLE RULES:
-1. ENTITY-FIRST DESCRIPTIONS: Start with entity name and stats, add 1 brief location/atmosphere phrase only if needed
-   ✓ GOOD: "A Void Wraith (45 HP, 12 ATK) blocks your path. Shadows writhe around it."
-   ✗ BAD: "In the depths of the twisted corridor, writhing with shadows, a mysterious entity emerges..."
+════════════════════════════════════════════════════════════════
+EVENT TYPE 2: SHOP (NPC Merchant with Inventory)
+════════════════════════════════════════════════════════════════
+{
+  "eventType": "shop",
+  "entity": "Wandering Merchant",
+  "entityRarity": "uncommon",
+  "entityType": "npc",
+  "description": "A Wandering Merchant sets up shop in the chamber. 3 items for sale.",
+  "entityData": {},
+  "choices": [
+    { "text": "Browse shop inventory", "outcome": { "message": "Merchant shows wares. Gold unchanged.", "goldChange": 0 }},
+    { "text": "Ask about portal rumors", "outcome": { "message": "Merchant shares portal intel. Gained 5 exp.", "experienceChange": 5 }},
+    { "text": "Leave the shop", "outcome": { "message": "Moved on without purchasing.", "experienceChange": 0 }}
+  ],
+  "shopInventory": [ // REQUIRED for shop events
+    { "itemName": "Steel Sword", "itemType": "weapon", "itemStats": {"attack": 8}, "itemRarity": "uncommon", "price": 40, "stock": 1, "description": "Reliable blade (+8 ATK)" },
+    { "itemName": "Leather Armor", "itemType": "armor", "itemStats": {"defense": 6}, "itemRarity": "uncommon", "price": 35, "stock": 1, "description": "Sturdy protection (+6 DEF)" },
+    { "itemName": "Health Potion", "itemType": "consumable", "itemStats": {"health": 30}, "itemRarity": "common", "price": 20, "stock": 3, "description": "Restores 30 HP" }
+  ]
+}
 
-2. DIRECT ACTION CHOICES: Use clear verbs, no flowery language
-   ✓ GOOD: "Attack the Wraith", "Evade and flee", "Offer gold (10g)"
-   ✗ BAD: "Attempt to engage in combat", "Try your luck at negotiation"
+════════════════════════════════════════════════════════════════
+EVENT TYPE 3: SHRINE (Sacrifice Resource for Boon/Bane)
+════════════════════════════════════════════════════════════════
+{
+  "eventType": "shrine",
+  "entity": "Void Altar",
+  "entityRarity": "rare",
+  "entityType": "object",
+  "description": "A Void Altar pulses with unstable energy. Sacrifice 15 HP or 40 gold for random blessing.",
+  "entityData": {},
+  "choices": [
+    { "text": "Sacrifice 15 health", "outcome": { "message": "Blood offered to altar. Awaiting blessing...", "healthChange": -15 }},
+    { "text": "Sacrifice 40 gold", "outcome": { "message": "Gold consumed by void. Awaiting blessing...", "goldChange": -40 }},
+    { "text": "Leave the altar", "outcome": { "message": "Moved on without offering.", "experienceChange": 0 }}
+  ],
+  "shrineOffer": { // REQUIRED for shrine events
+    "costType": "health",
+    "costAmount": 15,
+    "boonDescription": "Void Blessing: +15 HP, +5 ATK buff (temporary)",
+    "boonEffect": { "healthChange": 15, "goldChange": 0 },
+    "baneDescription": "Void Curse: -10 HP, -20 gold lost",
+    "baneEffect": { "healthChange": -10, "goldChange": -20 },
+    "boonChance": 60
+  }
+}
 
-3. MECHANICAL OUTCOME MESSAGES: State what happened in game terms
-   ✓ GOOD: "Wraith dealt 12 damage. Gained 25 exp, 20 gold."
-   ✗ BAD: "You strike down the Wraith as shadows dissipate into nothingness..."
+════════════════════════════════════════════════════════════════
+EVENT TYPE 4: TREASURE (Loot Discovery with Optional Trap)
+════════════════════════════════════════════════════════════════
+{
+  "eventType": "treasure",
+  "entity": "Ancient Chest",
+  "entityRarity": "uncommon",
+  "entityType": "object",
+  "description": "An Ancient Chest sits in the chamber. Lock looks worn.",
+  "entityData": {},
+  "choices": [
+    { "text": "Open the chest", "outcome": { "message": "Chest opened. Select reward.", "experienceChange": 5 }},
+    { "text": "Check for traps", "outcome": { "message": "Found trap mechanism. Chest safely opened.", "experienceChange": 10 }},
+    { "text": "Leave the chest", "outcome": { "message": "Moved on without looting.", "experienceChange": 0 }}
+  ],
+  "treasureChoices": [ // REQUIRED for treasure events
+    { "type": "item", "itemName": "Ruby Ring", "itemType": "accessory", "itemStats": {"attack": 3, "defense": 2}, "itemRarity": "uncommon", "description": "Jeweled ring (+3 ATK, +2 DEF)" },
+    { "type": "gold", "gold": 35, "description": "35 gold coins" },
+    { "type": "health", "healthRestore": 20, "description": "Healing salve (restore 20 HP)" }
+  ],
+  "trapRisk": { // OPTIONAL - 30% chance for treasure events
+    "failChance": 40,
+    "penalty": { "healthChange": -15, "goldChange": 0 }
+  }
+}
 
-4. MINIMAL PROSE: Cut all unnecessary adjectives and drama
-   - NO: "glimmers", "brandishes menacingly", "radiates energy", "twisted", "ominous"
-   - YES: entity stats, clear locations, direct threats
+════════════════════════════════════════════════════════════════
+EVENT TYPE 5: ENCOUNTER (Non-Aggressive Entity - Dialogue/Trade)
+════════════════════════════════════════════════════════════════
+{
+  "eventType": "encounter",
+  "entity": "Lost Explorer",
+  "entityRarity": "common",
+  "entityType": "npc",
+  "description": "A Lost Explorer seeks help navigating the void.",
+  "entityData": {},
+  "choices": [
+    { "text": "Help the explorer", "outcome": { "message": "Explorer grateful. Gained 15 exp, 10 gold reward.", "goldChange": 10, "experienceChange": 15 }},
+    { "text": "Trade information", "outcome": { "message": "Shared portal knowledge. Gained 20 exp.", "experienceChange": 20 }},
+    { "text": "Ignore and move on", "outcome": { "message": "Moved on without helping.", "experienceChange": 0 }}
+  ]
+}
 
-5. ENTITY NAMES: Short, functional, instantly understandable
-   ✓ GOOD: "Void Wraith", "Crystal Sentinel", "Rift Beast"
-   ✗ BAD: "The Twisted Shadow of the Forgotten Realm", "Ancient One Who Walks Between"
-
-6. CUSTOM COLORS (optional): Add thematic colors for unique entities
-   - Fire/lava: "text-red-500" or "text-orange-500"
-   - Ice/frost: "text-cyan-400" or "text-blue-300"
-   - Poison/corruption: "text-green-600" or "text-lime-500"
-   - Shadow/void: "text-violet-400" or "text-purple-600"
-   - Holy/divine: "text-yellow-300" or "text-amber-400"
-   - Omit color field to use default rarity colors
-
-ENTITY STATS (for enemies - REQUIRED):
-- common: health 20-30, attack 5-8, gold 10-15, exp 15-20
-- uncommon: health 40-50, attack 10-15, gold 20-30, exp 25-35
-- rare: health 60-70, attack 16-20, gold 40-60, exp 45-60
-- epic: health 80-90, attack 21-25, gold 70-90, exp 65-80
-- legendary: health 100-120, attack 26-30, gold 100-150, exp 90-100
-
-OUTCOME BALANCE:
-- Combat: -10 to -30 health, appropriate exp/gold based on entity rarity
-- Risk: -15 to -30 health OR +20 to +40 gold (high variance)
-- Safe: minimal stat changes (0-5 exp, 0-5 gold)
-
-ENTITY TYPES: enemy (hostile), npc (can trade), object (interactive), creature (neutral), phenomenon (environmental)
-
-TREASURE CHOICE GENERATION (OPTIONAL - 30% of encounters):
-When generating any encounter (enemy, object, etc.), you MAY include 2-3 balanced treasureChoices.
-- For enemies: treasureChoices represent loot dropped after defeating the enemy
-- For objects: treasureChoices represent discovered treasures or interactive loot
-Each choice must be roughly equal value but serve different playstyles.
-
-TREASURE CHOICE EXAMPLES:
-1. Combat Focus:
-   - {"type": "item", "itemName": "Obsidian Blade", "itemType": "weapon", "itemStats": {"attack": 8}, "itemRarity": "uncommon", "description": "Sharp volcanic glass blade (+8 ATK)"}
-   - {"type": "item", "itemName": "Iron Plate", "itemType": "armor", "itemStats": {"defense": 6}, "itemRarity": "uncommon", "description": "Heavy iron armor (+6 DEF)"}
-   - {"type": "gold", "gold": 45, "description": "Pile of 45 gold coins"}
-
-2. Mixed Rewards:
-   - {"type": "item", "itemName": "Lesser Healing Potion", "itemType": "consumable", "itemStats": {"health": 20}, "itemRarity": "common", "description": "Restores 20 health when used"}
-   - {"type": "gold", "gold": 30, "description": "30 gold coins"}
-   - {"type": "health", "healthRestore": 25, "description": "Fresh water spring (restore 25 health now)"}
-
-3. High-Risk High-Reward:
-   - {"type": "item", "itemName": "Void Shard", "itemType": "accessory", "itemStats": {"attack": 5, "defense": 3}, "itemRarity": "rare", "description": "Crystallized void energy (+5 ATK, +3 DEF)"}
-   - {"type": "gold", "gold": 80, "description": "Large cache of 80 gold"}
-
-TREASURE CHOICE BALANCE RULES:
-- All choices in a set must be roughly equal total value
-- Items: Balance stats by rarity (rare item = high gold amount)
-- Diversity: Mix item types (weapon, armor, consumable) or reward types (item, gold, health)
-- No duplicate types in a single choice set
-- Keep descriptions concise (under 60 characters)
+════════════════════════════════════════════════════════════════
+GENERAL RULES FOR ALL EVENT TYPES
+════════════════════════════════════════════════════════════════
+1. ENTITY-FIRST DESCRIPTIONS: Entity name/stats first, brief location context
+2. DIRECT CHOICES: Clear action verbs (Attack, Trade, Sacrifice, Open, Help)
+3. MECHANICAL OUTCOMES: State stat changes directly (no flowery prose)
+4. ENTITY STATS (combat): common 20-30 HP, uncommon 40-50 HP, rare 60-70 HP, epic 80-90 HP, legendary 100-120 HP
+5. ALWAYS include 2-3 choices minimum
+6. Shop inventory: 2-4 items, prices 20-80 gold based on rarity
+7. Shrine boonChance: 50-70% (higher = more reliable blessing)
+8. Treasure trapRisk: failChance 30-50% (higher = more dangerous)
 
 CURRENT ENCOUNTER CONTEXT (seed: ${seed}):
 ${
@@ -241,13 +325,20 @@ ${
 }
 - Player state: Health ${playerStats.health}/${playerStats.maxHealth}, Level ${playerStats.level}, Gold ${playerStats.gold}
 
-${portalContext ? `Use the portal theme to create thematically appropriate encounters. Match entity difficulty to the portal's rarity and risk level.` : `Use this context to create unique encounters. The theme and atmosphere should subtly influence entity naming and description without overriding the entity-first, mechanical style.`}`
+IMPORTANT: Generate a DIVERSE mix of event types. Avoid generating only combat events.
+- Distribute evenly: ~30% combat, ~20% shop, ~20% shrine, ~15% treasure, ~15% encounter
+- Match event type to portal context and player needs
+- For low health: favor shop (potions), treasure (healing), encounter (low-risk rewards)
+- For high gold: favor shop (equipment), shrine (sacrifice gold for power)
+- For portal exploration: mix all types for varied gameplay
+
+${portalContext ? `Use the portal theme to create thematically appropriate ${portalContext.rarity} encounters matching risk level ${portalContext.riskLevel}/10.` : `Create varied encounters. Avoid repetitive combat-only events.`}`
 
     const { text } = await generateText({
-      model: groq("llama-3.3-70b-versatile"),
+      model: groq("openai/gpt-oss-20b"),
       system: systemPrompt,
       prompt:
-        "Generate an entity encounter. State entity name and stats first, then location. Create 2-3 tactical choices with clear mechanical outcomes.",
+        "Generate ONE varied event from the 5 event types (combat/shop/shrine/treasure/encounter). Choose the event type that best fits the current player state and portal context. Include all required fields for your chosen eventType. Return ONLY valid JSON.",
       temperature,
     })
 
@@ -339,8 +430,56 @@ ${portalContext ? `Use the portal theme to create thematically appropriate encou
       return baseChoice
     })
 
+    // Transform shop inventory if present
+    const transformedShopInventory = narrativeData.shopInventory?.map((shopItem) => ({
+      item: {
+        id: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        name: shopItem.itemName,
+        type: shopItem.itemType,
+        value: shopItem.price,
+        rarity: shopItem.itemRarity,
+        icon: getIconForItemType(shopItem.itemType),
+        stats: shopItem.itemStats,
+      },
+      price: shopItem.price,
+      stock: shopItem.stock,
+    }))
+
+    // Transform shrine offer if present
+    const transformedShrineOffer = narrativeData.shrineOffer
+      ? {
+          costType: narrativeData.shrineOffer.costType,
+          costAmount: narrativeData.shrineOffer.costAmount,
+          boonDescription: narrativeData.shrineOffer.boonDescription,
+          boonEffect: {
+            healthChange: narrativeData.shrineOffer.boonEffect.healthChange,
+            goldChange: narrativeData.shrineOffer.boonEffect.goldChange,
+            ...(narrativeData.shrineOffer.boonEffect.itemName && {
+              itemGained: {
+                id: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                name: narrativeData.shrineOffer.boonEffect.itemName,
+                type: narrativeData.shrineOffer.boonEffect.itemType || "treasure",
+                value: 0,
+                rarity: narrativeData.shrineOffer.boonEffect.itemRarity || "common",
+                icon: getIconForItemType(
+                  narrativeData.shrineOffer.boonEffect.itemType || "treasure"
+                ),
+                stats: narrativeData.shrineOffer.boonEffect.itemStats,
+              },
+            }),
+          },
+          baneDescription: narrativeData.shrineOffer.baneDescription,
+          baneEffect: {
+            healthChange: narrativeData.shrineOffer.baneEffect.healthChange,
+            goldChange: narrativeData.shrineOffer.baneEffect.goldChange,
+          },
+          boonChance: narrativeData.shrineOffer.boonChance,
+        }
+      : undefined
+
     // Transform to GameEvent structure
     const event = {
+      eventType: narrativeData.eventType,
       description: narrativeData.description,
       entity: narrativeData.entity,
       entityRarity: narrativeData.entityRarity,
@@ -370,6 +509,9 @@ ${portalContext ? `Use the portal theme to create thematically appropriate encou
         },
       })),
       ...(transformedTreasureChoices && { treasureChoices: transformedTreasureChoices }),
+      ...(transformedShopInventory && { shopInventory: transformedShopInventory }),
+      ...(transformedShrineOffer && { shrineOffer: transformedShrineOffer }),
+      ...(narrativeData.trapRisk && { trapRisk: narrativeData.trapRisk }),
     }
 
     console.log("[narrative] Generated event:", event)

@@ -353,3 +353,40 @@
 .bg-gradient-radial {
   background: radial-gradient(circle at center, var(--tw-gradient-stops));
 }
+
+/* EntityText shimmer effect - moving gradient highlight */
+@keyframes shimmer {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 3s linear infinite;
+}
+
+/* EntityText gradient effect - color position animation */
+@keyframes gradient {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.animate-gradient {
+  animation: gradient 5s ease infinite;
+}
+
+/* Reduced motion support for EntityText effects */
+@media (prefers-reduced-motion: reduce) {
+  .animate-shimmer,
+  .animate-gradient {
+    animation: none;
+  }
+}

@@ -29,6 +29,17 @@ export const statsSchema = z.object({
   defense: z.number().optional(),
 })
 
+// Text effect schema for advanced entity text rendering
+export const textEffectSchema = z
+  .object({
+    type: z.enum(["shimmer", "gradient", "glow", "per-letter", "default"]),
+    colors: z.array(z.string()).min(1).default(["text-foreground"]), // Tailwind classes or hex codes
+    animationDuration: z.string().default("3s"), // e.g., "3s", "5s", "8s"
+    intensity: z.enum(["subtle", "medium", "strong"]).default("medium"),
+    customClass: z.string().optional(), // For AI-generated unique CSS classes
+  })
+  .optional()
+
 // Entity metadata for flexible management
 export const entityMetadataSchema = z.object({
   id: z.string(),
@@ -39,6 +50,7 @@ export const entityMetadataSchema = z.object({
   version: z.number(),
   tags: z.array(z.string()),
   color: z.string().optional(), // Optional color override (Tailwind class or hex)
+  textEffect: textEffectSchema, // Optional advanced text rendering effects
 })
 
 // Enemy schema
@@ -185,6 +197,7 @@ export type ItemType = z.infer<typeof itemTypeSchema>
 export type EffectType = z.infer<typeof effectTypeSchema>
 export type EntityType = z.infer<typeof entityTypeSchema>
 export type Stats = z.infer<typeof statsSchema>
+export type TextEffect = z.infer<typeof textEffectSchema>
 export type EntityMetadata = z.infer<typeof entityMetadataSchema>
 export type PortalMetadata = z.infer<typeof portalMetadataSchema>
 export type PortalData = z.infer<typeof portalDataSchema>

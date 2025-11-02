@@ -23,6 +23,7 @@ import { saveGameState, loadGameState, type GeneratedPortrait } from "@/lib/game
 import type { Rarity, Stats } from "@/lib/types"
 import { ENTITIES, RARITY_COLORS, type EntityType } from "@/lib/entities"
 import { maps as canonicalMaps } from "@/lib/entities/canonical/maps"
+import { EntityText } from "@/components/ui/entity-text"
 
 interface LogEntry {
   id: string
@@ -45,12 +46,26 @@ interface LogEntry {
   showChoices?: boolean | undefined
   treasureChoices?: TreasureChoice[] | undefined
   showTreasureChoices?: boolean | undefined
+  shopInventory?: GameEvent["shopInventory"] | undefined
+  shrineOffer?: GameEvent["shrineOffer"] | undefined
+  trapRisk?: GameEvent["trapRisk"] | undefined
+  shrineUsed?: boolean | undefined
+  purchasedItems?: Set<string> | undefined
 }
 
 interface EquippedItems {
   weapon?: InventoryItem
   armor?: InventoryItem
   accessory?: InventoryItem
+}
+
+interface RoomState {
+  roomId: string
+  locationId: string
+  roomNumber: number
+  logEntries: LogEntry[]
+  currentEvent: GameEvent | null
+  isComplete: boolean
 }
 
 export function DungeonCrawler() {
@@ -161,6 +176,8 @@ export function DungeonCrawler() {
 
   const [logEntries, setLogEntries] = useState<LogEntry[]>([])
   const [currentEvent, setCurrentEvent] = useState<GameEvent | null>(null)
+  const [currentRoom, setCurrentRoom] = useState<RoomState | null>(null)
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [modalContent, setModalContent] = useState<{ title: string; description: string } | null>(
     null
@@ -373,6 +390,9 @@ export function DungeonCrawler() {
 
   // Performance optimization: ref for debounced save timeout
   const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
+
+  // Race condition prevention: track in-flight shop purchases synchronously
+  const pendingPurchasesRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     const savedState = loadGameState()
@@ -642,11 +662,31 @@ export function DungeonCrawler() {
     maxHealth: totalStats.maxHealth,
   }
 
+  // Check if user is near bottom for auto-scroll
+  const checkScrollPosition = useCallback(() => {
+    const container = logContainerRef.current
+    if (!container) return
+
+    const { scrollTop, scrollHeight, clientHeight } = container
+    const isNearBottom = scrollHeight - scrollTop - clientHeight < 100
+    setShouldAutoScroll(isNearBottom)
+  }, [])
+
+  // Auto-scroll effect (only if user is near bottom)
   useEffect(() => {
-    if (logContainerRef.current) {
+    if (shouldAutoScroll && logContainerRef.current) {
       logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight
     }
-  }, [logEntries])
+  }, [currentRoom?.logEntries, logEntries, shouldAutoScroll])
+
+  // Attach scroll listener to detect user scrolling
+  useEffect(() => {
+    const container = logContainerRef.current
+    if (!container) return
+
+    container.addEventListener("scroll", checkScrollPosition)
+    return () => container.removeEventListener("scroll", checkScrollPosition)
+  }, [checkScrollPosition])
 
   const addLogEntry = (
     text: string,
@@ -654,7 +694,10 @@ export function DungeonCrawler() {
     entityRarity?: Rarity,
     choices?: GameEvent["choices"],
     entityData?: LogEntry["entityData"],
-    treasureChoices?: TreasureChoice[]
+    treasureChoices?: TreasureChoice[],
+    shopInventory?: GameEvent["shopInventory"],
+    shrineOffer?: GameEvent["shrineOffer"],
+    trapRisk?: GameEvent["trapRisk"]
   ) => {
     const newEntry: LogEntry = {
       id: Math.random().toString(36).substr(2, 9),
@@ -667,28 +710,148 @@ export function DungeonCrawler() {
       showChoices: false,
       treasureChoices,
       showTreasureChoices: false,
+      shopInventory,
+      shrineOffer,
+      trapRisk,
+      shrineUsed: false,
+      purchasedItems: new Set<string>(),
     }
 
-    setLogEntries([newEntry])
+    // Use callback to check LATEST state (not closure-captured)
+    let roomExists = false
+    setCurrentRoom((prevRoom) => {
+      if (prevRoom) {
+        roomExists = true
+        return {
+          ...prevRoom,
+          logEntries: [...prevRoom.logEntries, newEntry],
+        }
+      }
+      return prevRoom
+    })
+
+    // Fallback to global log only if no room exists
+    if (!roomExists) {
+      setLogEntries([newEntry])
+    }
 
     if (choices || treasureChoices) {
       setTimeout(
         () => {
-          setLogEntries((prev) =>
-            prev.map((entry) =>
-              entry.id === newEntry.id
-                ? {
-                    ...entry,
-                    showChoices: !!choices,
-                    showTreasureChoices: !!treasureChoices,
-                  }
-                : entry
+          // Use callback to check LATEST state
+          let updatedRoom = false
+          setCurrentRoom((prev) => {
+            if (prev) {
+              updatedRoom = true
+              return {
+                ...prev,
+                logEntries: prev.logEntries.map((entry) =>
+                  entry.id === newEntry.id
+                    ? {
+                        ...entry,
+                        showChoices: !!choices,
+                        showTreasureChoices: !!treasureChoices,
+                      }
+                    : entry
+                ),
+              }
+            }
+            return prev
+          })
+
+          // Fallback to global log if no room
+          if (!updatedRoom) {
+            setLogEntries((prev) =>
+              prev.map((entry) =>
+                entry.id === newEntry.id
+                  ? {
+                      ...entry,
+                      showChoices: !!choices,
+                      showTreasureChoices: !!treasureChoices,
+                    }
+                  : entry
+              )
             )
-          )
+          }
         },
         text.length * 20 + 200
       )
     }
+  }
+
+  // Room management helpers
+  const startNewRoom = (locationId: string, roomNumber: number) => {
+    const roomId = Math.random().toString(36).substr(2, 9)
+    setCurrentRoom({
+      roomId,
+      locationId,
+      roomNumber,
+      logEntries: [],
+      currentEvent: null,
+      isComplete: false,
+    })
+    addDebugLog("game", `Started room ${roomNumber} in ${locationId} (${roomId})`)
+  }
+
+  const completeCurrentRoom = () => {
+    if (!currentRoom || !activeLocation) return
+
+    addDebugLog("game", `Completing room ${currentRoom.roomNumber} in ${currentRoom.locationId}`)
+
+    // Increment room counter in portal data
+    if (activeLocation && activeLocation !== "void") {
+      setOpenLocations((prev) =>
+        prev.map((loc) => {
+          if (loc.id === activeLocation && loc.portalData) {
+            const newRoomCount = (loc.portalData.currentRoomCount || 0) + 1
+
+            // Calculate stability decay
+            const { min, max } = loc.portalData.stabilityDecayRate
+            const decayPercent = min + Math.random() * (max - min)
+            const stabilityDecay = Math.max(1, Math.floor(loc.stability * (decayPercent / 100)))
+            const newStability = Math.max(0, loc.stability - stabilityDecay)
+
+            // Check collapse conditions
+            const roomLimitReached = newRoomCount >= loc.portalData.expectedRoomCount
+            const stabilityDepleted = newStability <= 0
+
+            if (roomLimitReached || stabilityDepleted) {
+              setTimeout(() => {
+                setOpenLocations((current) => current.filter((l) => l.id !== activeLocation))
+                setPortalSessions((prev) => {
+                  const next = { ...prev }
+                  delete next[activeLocation]
+                  return next
+                })
+                setActiveTab("portal")
+                setActiveLocation(null)
+                setCurrentRoom(null)
+                const reason = roomLimitReached ? "fully explored" : "unstable"
+                addLogEntry(
+                  `The portal collapses (${reason})! Returning to the portal nexus.`,
+                  "portal"
+                )
+              }, 1000)
+              return loc
+            }
+
+            return {
+              ...loc,
+              stability: newStability,
+              portalData: {
+                ...loc.portalData,
+                currentRoomCount: newRoomCount,
+              },
+            }
+          }
+          return loc
+        })
+      )
+    }
+
+    // Start next room
+    const nextRoomNumber = currentRoom.roomNumber + 1
+    startNewRoom(currentRoom.locationId, nextRoomNumber)
   }
 
   // Helper to generate AI narrative for locations
@@ -696,7 +859,7 @@ export function DungeonCrawler() {
     stats: PlayerStats,
     _inv: InventoryItem[],
     locationId: string
-  ): Promise<GameEvent | null> => {
+  ): Promise<GameEvent> => {
     const currentLoc = openLocations.find((loc) => loc.id === locationId)
     const locationName = locationId === "void" ? "The Void" : currentLoc?.name || "Unknown"
 
@@ -738,8 +901,8 @@ export function DungeonCrawler() {
       const duration = Math.round(performance.now() - startTime)
       addDebugLog("error", `Failed to generate narrative after ${duration}ms: ${error}`)
       console.error(`Error generating ${locationName} narrative:`, error)
-      // Return null to signal fallback is needed
-      return null
+      // Throw error - no fallbacks (design choice for development)
+      throw new Error(`AI narrative generation failed: ${error}`)
     }
   }
 
@@ -747,70 +910,31 @@ export function DungeonCrawler() {
     if (!currentEvent) return
 
     addDebugLog("game", `Player chose: "${choice.text}"`)
-    setLogEntries([])
 
-    if (activeLocation && activeLocation !== "void") {
-      setOpenLocations((prev) =>
-        prev.map((loc) => {
-          if (loc.id === activeLocation) {
-            // Increment room counter
-            const newRoomCount = (loc.portalData?.currentRoomCount || 0) + 1
-
-            // Calculate stability decay (percentage-based if portalData exists)
-            let stabilityDecay
-            if (loc.portalData) {
-              const { min, max } = loc.portalData.stabilityDecayRate
-              const decayPercent = min + Math.random() * (max - min)
-              // Ensure minimum 1-point decay to prevent infinite low-stability loops
-              stabilityDecay = Math.max(1, Math.floor(loc.stability * (decayPercent / 100)))
-            } else {
-              // Legacy: fixed 10-25 decay for backward compatibility
-              stabilityDecay = Math.floor(Math.random() * 15 + 10)
-            }
-
-            const newStability = Math.max(0, loc.stability - stabilityDecay)
-
-            // Check dual collapse conditions
-            const roomLimitReached =
-              newRoomCount >= (loc.portalData?.expectedRoomCount || loc.maxEntrances)
-            const stabilityDepleted = newStability <= 0
-
-            if (roomLimitReached || stabilityDepleted) {
-              setTimeout(() => {
-                setOpenLocations((current) => current.filter((l) => l.id !== activeLocation))
-                // Clear portal session and buffs when portal collapses
-                setPortalSessions((prev) => {
-                  const next = { ...prev }
-                  if (activeLocation) {
-                    delete next[activeLocation]
-                  }
-                  return next
-                })
-                setActiveTab("portal")
-                setActiveLocation(null)
-                const reason = roomLimitReached ? "fully explored" : "unstable"
-                addLogEntry(
-                  `The portal collapses (${reason})! Returning to the portal nexus.`,
-                  "portal"
-                )
-              }, 1000)
-            }
-
-            return {
-              ...loc,
-              stability: newStability,
-              ...(loc.portalData && {
-                portalData: {
-                  ...loc.portalData,
-                  currentRoomCount: newRoomCount,
-                },
-              }),
-            }
+    // Hide all previous choices in the room (choice has been made)
+    setCurrentRoom((prev) =>
+      prev
+        ? {
+            ...prev,
+            logEntries: prev.logEntries.map((entry) => ({
+              ...entry,
+              showChoices: false,
+              showTreasureChoices: false,
+            })),
           }
-          return loc
-        })
-      )
-    }
+        : prev
+    )
+
+    // Also clear from global log (fallback)
+    setLogEntries((prev) =>
+      prev.map((entry) => ({
+        ...entry,
+        showChoices: false,
+        showTreasureChoices: false,
+      }))
+    )
+
+    // DON'T wipe logs - append to room log instead (progressive narrative)
 
     const outcome = choice.outcome
     const newStats = { ...baseStats }
@@ -893,33 +1017,103 @@ export function DungeonCrawler() {
 
     addLogEntry(outcome.message, outcome.entity, outcome.entityRarity)
 
-    setTimeout(async () => {
-      // Generate AI narrative for all locations (void and portals)
-      const event = await generateAINarrative(newStats, newInventory, activeLocation || "void")
+    // Check if event has treasure choices (multi-step room)
+    const hasTreasureChoices =
+      currentEvent?.treasureChoices && currentEvent.treasureChoices.length > 0
 
-      if (event) {
-        setCurrentEvent(event)
+    setTimeout(() => {
+      if (hasTreasureChoices) {
+        // Show treasure choices in SAME room (progressive narrative)
+        addDebugLog("game", "Showing treasure choices - room continues")
         addLogEntry(
-          event.description,
-          event.entity,
-          event.entityRarity,
-          event.choices,
-          event.entityData,
-          event.treasureChoices
+          "Select your reward:",
+          "treasure",
+          undefined,
+          undefined,
+          undefined,
+          currentEvent.treasureChoices
         )
+      } else if (currentRoom) {
+        // No treasure choices: Complete room and generate next event
+        completeCurrentRoom()
+
+        // Generate event for new room
+        setTimeout(async () => {
+          try {
+            const event = await generateAINarrative(
+              newStats,
+              newInventory,
+              activeLocation || "void"
+            )
+            setCurrentEvent(event)
+            addLogEntry(
+              event.description,
+              event.entity,
+              event.entityRarity,
+              event.choices,
+              event.entityData,
+              event.treasureChoices,
+              event.shopInventory,
+              event.shrineOffer,
+              event.trapRisk
+            )
+          } catch (error) {
+            console.error("[dungeon-crawler] Failed to generate AI narrative:", error)
+            // Show error state - no fallback (design choice)
+            setCurrentEvent({
+              eventType: "encounter",
+              description: "⚠️ AI narrative generation failed. Please try again.",
+              entity: "System Error",
+              entityRarity: "common",
+              choices: [
+                {
+                  text: "Continue exploring",
+                  outcome: { message: "Moving forward...", experienceChange: 0 },
+                },
+              ],
+            })
+          }
+        }, 300)
       } else {
-        // Fallback to static event if AI fails
-        const fallbackEvent = generateEvent(newStats, newInventory)
-        setCurrentEvent(fallbackEvent)
-        addLogEntry(
-          fallbackEvent.description,
-          fallbackEvent.entity,
-          fallbackEvent.entityRarity,
-          fallbackEvent.choices,
-          fallbackEvent.entityData
-        )
+        // Not in a room (void or legacy) - generate next event directly
+        setTimeout(async () => {
+          try {
+            const event = await generateAINarrative(
+              newStats,
+              newInventory,
+              activeLocation || "void"
+            )
+            setCurrentEvent(event)
+            addLogEntry(
+              event.description,
+              event.entity,
+              event.entityRarity,
+              event.choices,
+              event.entityData,
+              event.treasureChoices,
+              event.shopInventory,
+              event.shrineOffer,
+              event.trapRisk
+            )
+          } catch (error) {
+            console.error("[dungeon-crawler] Failed to generate AI narrative:", error)
+            // Show error state - no fallback (design choice)
+            setCurrentEvent({
+              eventType: "encounter",
+              description: "⚠️ AI narrative generation failed. Please try again.",
+              entity: "System Error",
+              entityRarity: "common",
+              choices: [
+                {
+                  text: "Continue exploring",
+                  outcome: { message: "Moving forward...", experienceChange: 0 },
+                },
+              ],
+            })
+          }
+        }, 500)
       }
-    }, 500)
+    }, 300)
   }
 
   const handleTreasureChoice = (choice: TreasureChoice) => {
@@ -944,36 +1138,98 @@ export function DungeonCrawler() {
       )
     }
 
-    // Clear treasure choices from log
+    // Clear treasure choices from current room log
+    setCurrentRoom((prev) =>
+      prev
+        ? {
+            ...prev,
+            logEntries: prev.logEntries.map((entry) => ({ ...entry, showTreasureChoices: false })),
+          }
+        : prev
+    )
+
+    // Also clear from global log (fallback)
     setLogEntries((prev) => prev.map((entry) => ({ ...entry, showTreasureChoices: false })))
 
-    // Generate next event after brief delay
-    setTimeout(async () => {
-      const event = await generateAINarrative(playerStats, inventory, activeLocation || "void")
+    // Complete room and generate next event
+    setTimeout(() => {
+      if (currentRoom) {
+        completeCurrentRoom()
 
-      if (event) {
-        setCurrentEvent(event)
-        addDebugLog("game", `Next event generated: ${event.entity}`)
-        addLogEntry(
-          event.description,
-          event.entity,
-          event.entityRarity,
-          event.choices,
-          event.entityData
-        )
+        setTimeout(async () => {
+          try {
+            const event = await generateAINarrative(
+              playerStats,
+              inventory,
+              activeLocation || "void"
+            )
+            setCurrentEvent(event)
+            addDebugLog("game", `Next event generated: ${event.entity}`)
+            addLogEntry(
+              event.description,
+              event.entity,
+              event.entityRarity,
+              event.choices,
+              event.entityData,
+              event.treasureChoices,
+              event.shopInventory,
+              event.shrineOffer,
+              event.trapRisk
+            )
+          } catch (error) {
+            console.error("[dungeon-crawler] Failed to generate AI narrative:", error)
+            // Show error state - no fallback (design choice)
+            setCurrentEvent({
+              eventType: "encounter",
+              description: "⚠️ AI narrative generation failed. Please try again.",
+              entity: "System Error",
+              entityRarity: "common",
+              choices: [
+                {
+                  text: "Continue exploring",
+                  outcome: { message: "Moving forward...", experienceChange: 0 },
+                },
+              ],
+            })
+          }
+        }, 300)
       } else {
-        // Fallback to static event if AI fails
-        const fallbackEvent = generateEvent(playerStats, inventory)
-        setCurrentEvent(fallbackEvent)
-        addLogEntry(
-          fallbackEvent.description,
-          fallbackEvent.entity,
-          fallbackEvent.entityRarity,
-          fallbackEvent.choices,
-          fallbackEvent.entityData
-        )
+        // Not in room - generate next event directly
+        setTimeout(async () => {
+          try {
+            const event = await generateAINarrative(
+              playerStats,
+              inventory,
+              activeLocation || "void"
+            )
+            setCurrentEvent(event)
+            addDebugLog("game", `Next event generated: ${event.entity}`)
+            addLogEntry(
+              event.description,
+              event.entity,
+              event.entityRarity,
+              event.choices,
+              event.entityData
+            )
+          } catch (error) {
+            console.error("[dungeon-crawler] Failed to generate AI narrative:", error)
+            // Show error state - no fallback (design choice)
+            setCurrentEvent({
+              eventType: "encounter",
+              description: "⚠️ AI narrative generation failed. Please try again.",
+              entity: "System Error",
+              entityRarity: "common",
+              choices: [
+                {
+                  text: "Continue exploring",
+                  outcome: { message: "Moving forward...", experienceChange: 0 },
+                },
+              ],
+            })
+          }
+        }, 500)
       }
-    }, 500)
+    }, 300)
   }
 
   const handleOpenMap = (mapItem: InventoryItem) => {
@@ -1019,6 +1275,10 @@ export function DungeonCrawler() {
     addDebugLog("game", `Entering location: ${location.name} (stability: ${location.stability}%)`)
     setActiveLocation(locationId)
     setActiveTab(locationId)
+
+    // Initialize room state for portal
+    const currentRoomNumber = location.portalData?.currentRoomCount || 0
+    startNewRoom(locationId, currentRoomNumber + 1)
 
     // Generate AI narrative for this location
     ;(async () => {
@@ -1070,6 +1330,9 @@ export function DungeonCrawler() {
     setActiveLocation("void")
     setActiveTab("void")
 
+    // Initialize room state for void (continuous exploration)
+    startNewRoom("void", 1)
+
     const event = await generateAINarrative(playerStats, inventory, "void")
 
     if (event) {
@@ -1107,35 +1370,13 @@ export function DungeonCrawler() {
     return parts.map((part, index) =>
       part.toLowerCase() === entity.toLowerCase() ? (
         // eslint-disable-next-line react/no-array-index-key
-        <span key={index} className={getRarityColor(entityRarity)}>
+        <EntityText key={index} rarity={entityRarity || "common"}>
           {part}
-        </span>
+        </EntityText>
       ) : (
         part
       )
     )
-  }
-
-  const getRarityColor = (rarity?: string, withGlow = false) => {
-    if (!rarity) return "text-foreground"
-    const colorClass = RARITY_COLORS[rarity as Rarity]
-    const baseClass = colorClass ? `${colorClass} font-semibold` : "text-foreground font-semibold"
-
-    // Add glow effect for legendary and epic items
-    if (withGlow) {
-      if (rarity === "legendary") {
-        // Legendary: Strong glow with pulse
-        return `${baseClass} drop-shadow-[0_0_12px_currentColor] animate-pulse`
-      } else if (rarity === "epic") {
-        // Epic: Medium glow with slower pulse
-        return `${baseClass} drop-shadow-[0_0_8px_currentColor] animate-pulse [animation-duration:3s]`
-      } else if (rarity === "rare") {
-        // Rare: Subtle glow without pulse
-        return `${baseClass} drop-shadow-[0_0_4px_currentColor]`
-      }
-    }
-
-    return baseClass
   }
 
   const getEntityGlow = (entity?: { tags?: string[]; rarity?: string }) => {
@@ -1176,8 +1417,10 @@ export function DungeonCrawler() {
 
     return (
       <div className="my-3 p-4 bg-secondary/30 rounded border border-accent/30 animate-in fade-in duration-300 shadow-lg shadow-accent/5">
-        <div className={`text-sm mb-2 ${getRarityColor(entityData.rarity, true)} ${entityGlow}`}>
-          {entityData.name}
+        <div className={`text-sm mb-2 ${entityGlow}`}>
+          <EntityText rarity={entityData.rarity} withGlow={true}>
+            {entityData.name}
+          </EntityText>
         </div>
         <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
           {entityData.type && (
@@ -1236,9 +1479,9 @@ export function DungeonCrawler() {
           )}
           <div className="flex items-center gap-1">
             <span className="text-accent">Rarity:</span>
-            <span className={`capitalize ${getRarityColor(entityData.rarity)}`}>
+            <EntityText rarity={entityData.rarity} className="capitalize">
               {entityData.rarity}
-            </span>
+            </EntityText>
           </div>
         </div>
       </div>
@@ -1978,9 +2221,9 @@ export function DungeonCrawler() {
 
                           return (
                             <div key={buff.id} className="text-xs flex items-center gap-2">
-                              <span className={`font-medium ${getRarityColor(buff.rarity)}`}>
+                              <EntityText rarity={buff.rarity} className="font-medium">
                                 {buff.name}
-                              </span>
+                              </EntityText>
                               <span className="text-muted-foreground">{statsDisplay}</span>
                             </div>
                           )
@@ -2024,8 +2267,8 @@ export function DungeonCrawler() {
                   >
                     <div className="flex items-start justify-between">
                       <div>
-                        <div className={`font-light mb-1 ${getRarityColor(location.rarity)}`}>
-                          {location.name}
+                        <div className="font-light mb-1">
+                          <EntityText rarity={location.rarity}>{location.name}</EntityText>
                         </div>
                         <div className="text-xs text-muted-foreground capitalize">
                           {location.rarity} location
@@ -2050,16 +2293,14 @@ export function DungeonCrawler() {
               value="void"
               className="flex-1 flex flex-col overflow-hidden mt-0 min-w-0 w-full"
             >
-              <div className="flex-1 flex flex-col gap-4 justify-start">
-                {logEntries.map((entry, index) => {
-                  const opacity =
-                    index === logEntries.length - 1 ? 1 : 0.3 + (index / logEntries.length) * 0.7
+              <div
+                ref={logContainerRef}
+                className="flex-1 overflow-y-auto flex flex-col gap-4 justify-start"
+                style={{ scrollBehavior: "smooth" }}
+              >
+                {(currentRoom?.logEntries || logEntries).map((entry) => {
                   return (
-                    <div
-                      key={entry.id}
-                      className="transition-opacity duration-500"
-                      style={{ opacity }}
-                    >
+                    <div key={entry.id} className="transition-opacity duration-300">
                       <div className="typewriter-line text-sm leading-relaxed font-light">
                         {renderTextWithEntities(entry.text, entry.entity, entry.entityRarity)}
                       </div>
@@ -2122,6 +2363,251 @@ export function DungeonCrawler() {
                           ))}
                         </div>
                       )}
+                      {/* Shop Inventory UI */}
+                      {entry.shopInventory && (
+                        <div className="mt-3 space-y-2 animate-in fade-in duration-300">
+                          <div className="text-xs font-mono uppercase tracking-wider text-accent mb-2">
+                            🛒 Shop Inventory
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {entry.shopInventory.map((shopItem) => {
+                              const isPurchased = entry.purchasedItems?.has(shopItem.item.id)
+                              const isOutOfStock = shopItem.stock === 0
+
+                              return (
+                                <div
+                                  key={`shop-${entry.id}-${shopItem.item.id}`}
+                                  className={`p-3 bg-secondary/30 rounded border border-border/50 transition-all duration-200 ${
+                                    isPurchased || isOutOfStock
+                                      ? "opacity-50 cursor-not-allowed"
+                                      : "hover:border-accent hover:bg-accent/5 cursor-pointer"
+                                  }`}
+                                  onClick={() => {
+                                    if (isPurchased) {
+                                      addLogEntry(
+                                        `Already purchased: ${shopItem.item.name}`,
+                                        "common"
+                                      )
+                                      return
+                                    }
+                                    if (isOutOfStock) {
+                                      addLogEntry(`Out of stock: ${shopItem.item.name}`, "common")
+                                      return
+                                    }
+
+                                    // Race condition fix: check pending purchases synchronously
+                                    if (pendingPurchasesRef.current.has(shopItem.item.id)) {
+                                      return // Silently ignore duplicate rapid clicks
+                                    }
+
+                                    if (playerStats.gold >= shopItem.price) {
+                                      // Mark as pending immediately (synchronous) - never delete to prevent race condition
+                                      pendingPurchasesRef.current.add(shopItem.item.id)
+
+                                      setBaseStats((prev) => ({
+                                        ...prev,
+                                        gold: prev.gold - shopItem.price,
+                                      }))
+                                      setInventory((prev) => [...prev, shopItem.item])
+
+                                      // Mark item as purchased in this log entry
+                                      setLogEntries((prev) =>
+                                        prev.map((e) =>
+                                          e.id === entry.id
+                                            ? {
+                                                ...e,
+                                                purchasedItems: new Set([
+                                                  ...(e.purchasedItems || []),
+                                                  shopItem.item.id,
+                                                ]),
+                                              }
+                                            : e
+                                        )
+                                      )
+
+                                      addLogEntry(
+                                        `✨ Purchased: ${shopItem.item.name} for ${shopItem.price}g`,
+                                        shopItem.item.rarity
+                                      )
+                                    } else {
+                                      addLogEntry(
+                                        `❌ Not enough gold! Need ${shopItem.price}g, have ${playerStats.gold}g`,
+                                        "common"
+                                      )
+                                    }
+                                  }}
+                                >
+                                  <div className="flex justify-between items-start mb-1">
+                                    <div className="text-sm font-medium text-foreground">
+                                      {shopItem.item.name}
+                                    </div>
+                                    <div className="text-xs text-yellow-500 font-mono">
+                                      {shopItem.price}g
+                                    </div>
+                                  </div>
+                                  <div className="text-xs text-muted-foreground mb-1">
+                                    {shopItem.item.stats?.attack &&
+                                      `+${shopItem.item.stats.attack} ATK `}
+                                    {shopItem.item.stats?.defense &&
+                                      `+${shopItem.item.stats.defense} DEF `}
+                                    {shopItem.item.stats?.health &&
+                                      `+${shopItem.item.stats.health} HP`}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    Stock: {shopItem.stock} • {shopItem.item.rarity}
+                                    {isPurchased && " • SOLD"}
+                                    {isOutOfStock && " • OUT OF STOCK"}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+                      {/* Shrine Offer UI */}
+                      {entry.shrineOffer && (
+                        <div className="mt-3 p-4 bg-secondary/30 rounded border border-accent/50 animate-in fade-in duration-300">
+                          <div className="text-xs font-mono uppercase tracking-wider text-accent mb-2">
+                            ⛩️ Shrine Offering
+                          </div>
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Sacrifice:</span>
+                              <span className="text-red-400">
+                                {entry.shrineOffer.costAmount} {entry.shrineOffer.costType}
+                              </span>
+                            </div>
+                            <div className="border-t border-border/50 pt-2">
+                              <div className="text-green-400 mb-1">
+                                ✨ Boon ({entry.shrineOffer.boonChance}% chance)
+                              </div>
+                              <div className="text-xs text-muted-foreground pl-3">
+                                {entry.shrineOffer.boonDescription}
+                              </div>
+                            </div>
+                            <div className="border-t border-border/50 pt-2">
+                              <div className="text-red-400 mb-1">
+                                ⚠️ Bane ({100 - entry.shrineOffer.boonChance}% chance)
+                              </div>
+                              <div className="text-xs text-muted-foreground pl-3">
+                                {entry.shrineOffer.baneDescription}
+                              </div>
+                            </div>
+                            <button
+                              disabled={entry.shrineUsed}
+                              className={`w-full mt-2 px-4 py-2 border rounded transition-all duration-200 ${
+                                entry.shrineUsed
+                                  ? "bg-secondary/20 border-border/50 text-muted-foreground cursor-not-allowed"
+                                  : "bg-accent/10 hover:bg-accent/20 border-accent/50 text-accent cursor-pointer"
+                              }`}
+                              onClick={() => {
+                                // Check if already used
+                                if (entry.shrineUsed) {
+                                  addLogEntry("⛩️ This shrine has already been used", "common")
+                                  return
+                                }
+
+                                // Check if player can afford the sacrifice
+                                const canAfford =
+                                  entry.shrineOffer?.costType === "health"
+                                    ? playerStats.health > (entry.shrineOffer?.costAmount || 0)
+                                    : playerStats.gold >= (entry.shrineOffer?.costAmount || 0)
+
+                                if (!canAfford) {
+                                  addLogEntry(
+                                    `❌ Insufficient ${entry.shrineOffer?.costType}!`,
+                                    "common"
+                                  )
+                                  return
+                                }
+
+                                // Deduct cost
+                                if (entry.shrineOffer?.costType === "health") {
+                                  setBaseStats((prev) => ({
+                                    ...prev,
+                                    health: prev.health - (entry.shrineOffer?.costAmount || 0),
+                                  }))
+                                } else {
+                                  setBaseStats((prev) => ({
+                                    ...prev,
+                                    gold: prev.gold - (entry.shrineOffer?.costAmount || 0),
+                                  }))
+                                }
+
+                                // Roll for boon or bane
+                                const roll = Math.random() * 100
+                                const isBoon = roll < (entry.shrineOffer?.boonChance || 0)
+
+                                if (isBoon) {
+                                  addLogEntry(`✨ ${entry.shrineOffer?.boonDescription}`, "rare")
+                                  if (entry.shrineOffer?.boonEffect.healthChange) {
+                                    setBaseStats((prev) => ({
+                                      ...prev,
+                                      health:
+                                        prev.health +
+                                        (entry.shrineOffer?.boonEffect.healthChange || 0),
+                                    }))
+                                  }
+                                  if (entry.shrineOffer?.boonEffect.goldChange) {
+                                    setBaseStats((prev) => ({
+                                      ...prev,
+                                      gold:
+                                        prev.gold + (entry.shrineOffer?.boonEffect.goldChange || 0),
+                                    }))
+                                  }
+                                  if (entry.shrineOffer?.boonEffect.itemGained) {
+                                    setInventory((prev) => [
+                                      ...prev,
+                                      entry.shrineOffer!.boonEffect.itemGained!,
+                                    ])
+                                  }
+                                } else {
+                                  addLogEntry(`⚠️ ${entry.shrineOffer?.baneDescription}`, "common")
+                                  if (entry.shrineOffer?.baneEffect.healthChange) {
+                                    setBaseStats((prev) => ({
+                                      ...prev,
+                                      health:
+                                        prev.health +
+                                        (entry.shrineOffer?.baneEffect.healthChange || 0),
+                                    }))
+                                  }
+                                  if (entry.shrineOffer?.baneEffect.goldChange) {
+                                    setBaseStats((prev) => ({
+                                      ...prev,
+                                      gold:
+                                        prev.gold + (entry.shrineOffer?.baneEffect.goldChange || 0),
+                                    }))
+                                  }
+                                }
+
+                                // Mark shrine as used
+                                setLogEntries((prev) =>
+                                  prev.map((e) =>
+                                    e.id === entry.id ? { ...e, shrineUsed: true } : e
+                                  )
+                                )
+                              }}
+                            >
+                              {entry.shrineUsed ? "Shrine Used" : "Make Offering"}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      {/* Trap Risk Warning UI */}
+                      {entry.trapRisk && (
+                        <div className="mt-3 p-3 bg-red-500/10 rounded border border-red-500/50 animate-in fade-in duration-300">
+                          <div className="text-xs font-mono uppercase tracking-wider text-red-400 mb-2">
+                            ⚠️ Trap Detected
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {entry.trapRisk.failChance}% chance of triggering trap
+                            {entry.trapRisk.penalty.healthChange &&
+                              ` (${entry.trapRisk.penalty.healthChange} HP damage)`}
+                            {entry.trapRisk.penalty.goldChange &&
+                              ` (${entry.trapRisk.penalty.goldChange} gold lost)`}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )
                 })}
@@ -2134,19 +2620,15 @@ export function DungeonCrawler() {
                 value={location.id}
                 className="flex-1 flex flex-col overflow-hidden mt-0 min-w-0 w-full"
               >
-                <div className="flex-1 flex flex-col gap-4 justify-start">
+                <div
+                  ref={activeLocation === location.id ? logContainerRef : undefined}
+                  className="flex-1 overflow-y-auto flex flex-col gap-4 justify-start"
+                  style={{ scrollBehavior: "smooth" }}
+                >
                   {activeLocation === location.id &&
-                    logEntries.map((entry, index) => {
-                      const opacity =
-                        index === logEntries.length - 1
-                          ? 1
-                          : 0.3 + (index / logEntries.length) * 0.7
+                    (currentRoom?.logEntries || logEntries).map((entry) => {
                       return (
-                        <div
-                          key={entry.id}
-                          className="transition-opacity duration-500"
-                          style={{ opacity }}
-                        >
+                        <div key={entry.id} className="transition-opacity duration-300">
                           <div className="typewriter-line text-sm leading-relaxed font-light">
                             {renderTextWithEntities(entry.text, entry.entity, entry.entityRarity)}
                           </div>
@@ -2209,6 +2691,258 @@ export function DungeonCrawler() {
                               ))}
                             </div>
                           )}
+                          {/* Shop Inventory UI (Mobile) */}
+                          {entry.shopInventory && (
+                            <div className="mt-3 space-y-2 animate-in fade-in duration-300">
+                              <div className="text-xs font-mono uppercase tracking-wider text-accent mb-2">
+                                🛒 Shop Inventory
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                {entry.shopInventory.map((shopItem) => {
+                                  const isPurchased = entry.purchasedItems?.has(shopItem.item.id)
+                                  const isOutOfStock = shopItem.stock === 0
+
+                                  return (
+                                    <div
+                                      key={`shop-mobile-${entry.id}-${shopItem.item.id}`}
+                                      className={`p-3 bg-secondary/30 rounded border border-border/50 transition-all duration-200 ${
+                                        isPurchased || isOutOfStock
+                                          ? "opacity-50 cursor-not-allowed"
+                                          : "hover:border-accent hover:bg-accent/5 cursor-pointer"
+                                      }`}
+                                      onClick={() => {
+                                        if (isPurchased) {
+                                          addLogEntry(
+                                            `Already purchased: ${shopItem.item.name}`,
+                                            "common"
+                                          )
+                                          return
+                                        }
+                                        if (isOutOfStock) {
+                                          addLogEntry(
+                                            `Out of stock: ${shopItem.item.name}`,
+                                            "common"
+                                          )
+                                          return
+                                        }
+
+                                        // Race condition fix: check pending purchases synchronously
+                                        if (pendingPurchasesRef.current.has(shopItem.item.id)) {
+                                          return // Silently ignore duplicate rapid clicks
+                                        }
+
+                                        if (playerStats.gold >= shopItem.price) {
+                                          // Mark as pending immediately (synchronous) - never delete to prevent race condition
+                                          pendingPurchasesRef.current.add(shopItem.item.id)
+
+                                          setBaseStats((prev) => ({
+                                            ...prev,
+                                            gold: prev.gold - shopItem.price,
+                                          }))
+                                          setInventory((prev) => [...prev, shopItem.item])
+
+                                          // Mark item as purchased in this log entry
+                                          setLogEntries((prev) =>
+                                            prev.map((e) =>
+                                              e.id === entry.id
+                                                ? {
+                                                    ...e,
+                                                    purchasedItems: new Set([
+                                                      ...(e.purchasedItems || []),
+                                                      shopItem.item.id,
+                                                    ]),
+                                                  }
+                                                : e
+                                            )
+                                          )
+
+                                          addLogEntry(
+                                            `✨ Purchased: ${shopItem.item.name} for ${shopItem.price}g`,
+                                            shopItem.item.rarity
+                                          )
+                                        } else {
+                                          addLogEntry(
+                                            `❌ Not enough gold! Need ${shopItem.price}g, have ${playerStats.gold}g`,
+                                            "common"
+                                          )
+                                        }
+                                      }}
+                                    >
+                                      <div className="flex justify-between items-start mb-1">
+                                        <div className="text-sm font-medium text-foreground">
+                                          {shopItem.item.name}
+                                        </div>
+                                        <div className="text-xs text-yellow-500 font-mono">
+                                          {shopItem.price}g
+                                        </div>
+                                      </div>
+                                      <div className="text-xs text-muted-foreground mb-1">
+                                        {shopItem.item.stats?.attack &&
+                                          `+${shopItem.item.stats.attack} ATK `}
+                                        {shopItem.item.stats?.defense &&
+                                          `+${shopItem.item.stats.defense} DEF `}
+                                        {shopItem.item.stats?.health &&
+                                          `+${shopItem.item.stats.health} HP`}
+                                      </div>
+                                      <div className="text-xs text-muted-foreground">
+                                        Stock: {shopItem.stock} • {shopItem.item.rarity}
+                                        {isPurchased && " • SOLD"}
+                                        {isOutOfStock && " • OUT OF STOCK"}
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )}
+                          {/* Shrine Offer UI (Mobile) */}
+                          {entry.shrineOffer && (
+                            <div className="mt-3 p-4 bg-secondary/30 rounded border border-accent/50 animate-in fade-in duration-300">
+                              <div className="text-xs font-mono uppercase tracking-wider text-accent mb-2">
+                                ⛩️ Shrine Offering
+                              </div>
+                              <div className="space-y-2 text-sm">
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">Sacrifice:</span>
+                                  <span className="text-red-400">
+                                    {entry.shrineOffer.costAmount} {entry.shrineOffer.costType}
+                                  </span>
+                                </div>
+                                <div className="border-t border-border/50 pt-2">
+                                  <div className="text-green-400 mb-1">
+                                    ✨ Boon ({entry.shrineOffer.boonChance}% chance)
+                                  </div>
+                                  <div className="text-xs text-muted-foreground pl-3">
+                                    {entry.shrineOffer.boonDescription}
+                                  </div>
+                                </div>
+                                <div className="border-t border-border/50 pt-2">
+                                  <div className="text-red-400 mb-1">
+                                    ⚠️ Bane ({100 - entry.shrineOffer.boonChance}% chance)
+                                  </div>
+                                  <div className="text-xs text-muted-foreground pl-3">
+                                    {entry.shrineOffer.baneDescription}
+                                  </div>
+                                </div>
+                                <button
+                                  disabled={entry.shrineUsed}
+                                  className={`w-full mt-2 px-4 py-2 border rounded transition-all duration-200 ${
+                                    entry.shrineUsed
+                                      ? "bg-secondary/20 border-border/50 text-muted-foreground cursor-not-allowed"
+                                      : "bg-accent/10 hover:bg-accent/20 border-accent/50 text-accent cursor-pointer"
+                                  }`}
+                                  onClick={() => {
+                                    if (entry.shrineUsed) {
+                                      addLogEntry("⛩️ This shrine has already been used", "common")
+                                      return
+                                    }
+
+                                    const canAfford =
+                                      entry.shrineOffer?.costType === "health"
+                                        ? playerStats.health > (entry.shrineOffer?.costAmount || 0)
+                                        : playerStats.gold >= (entry.shrineOffer?.costAmount || 0)
+
+                                    if (!canAfford) {
+                                      addLogEntry(
+                                        `❌ Insufficient ${entry.shrineOffer?.costType}!`,
+                                        "common"
+                                      )
+                                      return
+                                    }
+
+                                    if (entry.shrineOffer?.costType === "health") {
+                                      setBaseStats((prev) => ({
+                                        ...prev,
+                                        health: prev.health - (entry.shrineOffer?.costAmount || 0),
+                                      }))
+                                    } else {
+                                      setBaseStats((prev) => ({
+                                        ...prev,
+                                        gold: prev.gold - (entry.shrineOffer?.costAmount || 0),
+                                      }))
+                                    }
+
+                                    const roll = Math.random() * 100
+                                    const isBoon = roll < (entry.shrineOffer?.boonChance || 0)
+
+                                    if (isBoon) {
+                                      addLogEntry(
+                                        `✨ ${entry.shrineOffer?.boonDescription}`,
+                                        "rare"
+                                      )
+                                      if (entry.shrineOffer?.boonEffect.healthChange) {
+                                        setBaseStats((prev) => ({
+                                          ...prev,
+                                          health:
+                                            prev.health +
+                                            (entry.shrineOffer?.boonEffect.healthChange || 0),
+                                        }))
+                                      }
+                                      if (entry.shrineOffer?.boonEffect.goldChange) {
+                                        setBaseStats((prev) => ({
+                                          ...prev,
+                                          gold:
+                                            prev.gold +
+                                            (entry.shrineOffer?.boonEffect.goldChange || 0),
+                                        }))
+                                      }
+                                      if (entry.shrineOffer?.boonEffect.itemGained) {
+                                        setInventory((prev) => [
+                                          ...prev,
+                                          entry.shrineOffer!.boonEffect.itemGained!,
+                                        ])
+                                      }
+                                    } else {
+                                      addLogEntry(
+                                        `⚠️ ${entry.shrineOffer?.baneDescription}`,
+                                        "common"
+                                      )
+                                      if (entry.shrineOffer?.baneEffect.healthChange) {
+                                        setBaseStats((prev) => ({
+                                          ...prev,
+                                          health:
+                                            prev.health +
+                                            (entry.shrineOffer?.baneEffect.healthChange || 0),
+                                        }))
+                                      }
+                                      if (entry.shrineOffer?.baneEffect.goldChange) {
+                                        setBaseStats((prev) => ({
+                                          ...prev,
+                                          gold:
+                                            prev.gold +
+                                            (entry.shrineOffer?.baneEffect.goldChange || 0),
+                                        }))
+                                      }
+                                    }
+
+                                    // Mark shrine as used
+                                    setLogEntries((prev) =>
+                                      prev.map((e) =>
+                                        e.id === entry.id ? { ...e, shrineUsed: true } : e
+                                      )
+                                    )
+                                  }}
+                                >
+                                  {entry.shrineUsed ? "Shrine Used" : "Make Offering"}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                          {/* Trap Risk Warning UI (Mobile) */}
+                          {entry.trapRisk && (
+                            <div className="mt-3 p-3 bg-red-500/10 rounded border border-red-500/50 animate-in fade-in duration-300">
+                              <div className="text-xs font-mono uppercase tracking-wider text-red-400 mb-2">
+                                ⚠️ Trap Detected
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                {entry.trapRisk.failChance}% chance of triggering trap
+                                {entry.trapRisk.penalty.healthChange &&
+                                  ` (${entry.trapRisk.penalty.healthChange} HP damage)`}
+                                {entry.trapRisk.penalty.goldChange &&
+                                  ` (${entry.trapRisk.penalty.goldChange} gold lost)`}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )
                     })}
@@ -2251,10 +2985,10 @@ export function DungeonCrawler() {
                           }
                         }}
                       >
-                        <div
-                          className={`text-sm font-light text-center ${getRarityColor(equippedItems.weapon.rarity, true)}`}
-                        >
-                          {equippedItems.weapon.name}
+                        <div className="text-sm font-light text-center">
+                          <EntityText rarity={equippedItems.weapon.rarity} withGlow={true}>
+                            {equippedItems.weapon.name}
+                          </EntityText>
                         </div>
                       </div>
                     ) : (
@@ -2289,10 +3023,10 @@ export function DungeonCrawler() {
                           }
                         }}
                       >
-                        <div
-                          className={`text-sm font-light text-center ${getRarityColor(equippedItems.armor.rarity, true)}`}
-                        >
-                          {equippedItems.armor.name}
+                        <div className="text-sm font-light text-center">
+                          <EntityText rarity={equippedItems.armor.rarity} withGlow={true}>
+                            {equippedItems.armor.name}
+                          </EntityText>
                         </div>
                       </div>
                     ) : (
@@ -2327,10 +3061,10 @@ export function DungeonCrawler() {
                           }
                         }}
                       >
-                        <div
-                          className={`text-sm font-light text-center ${getRarityColor(equippedItems.accessory.rarity, true)}`}
-                        >
-                          {equippedItems.accessory.name}
+                        <div className="text-sm font-light text-center">
+                          <EntityText rarity={equippedItems.accessory.rarity} withGlow={true}>
+                            {equippedItems.accessory.name}
+                          </EntityText>
                         </div>
                       </div>
                     ) : (
@@ -2816,11 +3550,9 @@ export function DungeonCrawler() {
                                   >
                                     <span className="truncate flex-1">{entity.name}</span>
                                     <div className="flex gap-2 items-center">
-                                      <span
-                                        className={`capitalize ${getRarityColor(entity.rarity)}`}
-                                      >
+                                      <EntityText rarity={entity.rarity} className="capitalize">
                                         {entity.rarity}
-                                      </span>
+                                      </EntityText>
                                       {entity.source === "ai" && (
                                         <span className="text-purple-400 text-[8px]">AI</span>
                                       )}
@@ -3200,8 +3932,8 @@ Open this map to unlock a portal to ${item.mapData.locationName}.`,
                   }
                 }}
               >
-                <div className={`text-sm font-light ${getRarityColor(item.rarity)}`}>
-                  {item.name}
+                <div className="text-sm font-light">
+                  <EntityText rarity={item.rarity}>{item.name}</EntityText>
                 </div>
               </div>
             ))}

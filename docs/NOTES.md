@@ -79,3 +79,17 @@ Auto-generated log of all critical (76-100) documentation, technical debt, and n
 - ⭐80 Implement Phase 3.2: Artifact drop logic - Create checkPortalExclusiveDrop() function, match portal theme, check globallyUnique, roll drop chance
 - ⭐75 Implement Phase 3.3: Artifact acquisition tracking - Update handleTreasureChoice, add to obtainedArtifacts, prevent duplicates
 
+## 2025-11-02 21:05 - [NEXT]
+- ⭐90 Commit the changes - All validation passing, implementation complete, ready for git commit
+
+## 2025-11-02 21:17 - [DEBT]
+- 🔴80 Race condition in shop purchase tracking - Rapid clicks bypass purchasedItems check due to async state updates
+
+## 2025-11-02 21:17 - [NEXT]
+- ⭐95 Fix purchase tracking race condition - Add useRef to track pending purchases or implement debouncing
+- ⭐90 Commit all changes - Technical debt fixes + model update ready for git commit
+
+## 2025-11-02 17:34 - [NEXT]
+- ⭐95 Start dev server and visually test EntityText component with all 5 effect types in browser
+- ⭐90 Test Groq API endpoint - Send test request to /api/generate-text-effect with sample entity data
+- ⭐85 Integrate Groq text effect generation into generate-narrative route for AI-generated entities
