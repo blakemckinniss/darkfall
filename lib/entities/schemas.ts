@@ -78,6 +78,8 @@ export const consumableSchema = entityMetadataSchema.extend({
     type: effectTypeSchema,
     duration: z.number().optional(),
     statChanges: statsSchema,
+    scope: z.enum(["global", "portal", "encounter"]).default("global"),
+    portalRestriction: z.string().optional(), // Specific portal theme/ID
   }),
   description: z.string().optional(),
 })

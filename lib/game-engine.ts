@@ -30,6 +30,8 @@ export interface InventoryItem {
     type: EffectType
     duration?: number
     statChanges: Stats
+    scope?: "global" | "portal" | "encounter"
+    portalRestriction?: string
   }
 }
 
@@ -39,6 +41,24 @@ export interface ActiveEffect {
   statChanges: Stats
   endTime: number // timestamp when effect expires
   rarity: Rarity
+  scope?: "global" | "portal" | "encounter"
+  portalId?: string // Portal location ID this effect is tied to
+}
+
+export interface PortalBuff {
+  id: string
+  name: string
+  statChanges: Stats
+  consumableId: string
+  appliedAt: number
+  rarity: Rarity
+}
+
+export interface PortalSession {
+  locationId: string
+  enteredAt: number
+  activeBuffs: PortalBuff[]
+  roomsVisited: number
 }
 
 export interface Location {
