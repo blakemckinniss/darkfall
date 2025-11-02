@@ -23,6 +23,8 @@ import { saveGameState, loadGameState, type GeneratedPortrait } from "@/lib/game
 import type { Rarity, Stats } from "@/lib/types"
 import { ENTITIES, RARITY_COLORS, type EntityType } from "@/lib/entities"
 import { maps as canonicalMaps } from "@/lib/entities/canonical/maps"
+import { getAllPortalArtifacts } from "@/lib/entities/canonical/portal-artifacts"
+import { attemptArtifactDrop, type PortalContext } from "@/lib/portal-artifacts"
 import { EntityText } from "@/components/ui/entity-text"
 
 interface LogEntry {
@@ -212,7 +214,7 @@ export function DungeonCrawler() {
   interface DebugLogEntry {
     id: string
     timestamp: number
-    type: "game" | "ai" | "state" | "error" | "system"
+    type: "game" | "ai" | "state" | "error" | "system" | "artifact"
     message: string
     data?: unknown
   }
@@ -854,6 +856,48 @@ export function DungeonCrawler() {
     startNewRoom(currentRoom.locationId, nextRoomNumber)
   }
 
+  // Helper to inject portal-exclusive artifact drops into treasure events
+  const injectArtifactDrop = (event: GameEvent, locationId: string): GameEvent => {
+    // Only attempt artifact drops for treasure events in portals
+    if (!event.treasureChoices || locationId === "void") {
+      return event
+    }
+
+    const currentLoc = openLocations.find((loc) => loc.id === locationId)
+    if (!currentLoc?.portalData || !currentLoc.portalMetadata) {
+      return event
+    }
+
+    // Build portal context for artifact drop logic
+    const portalContext: PortalContext = {
+      theme: currentLoc.portalMetadata.theme || currentLoc.name,
+      rarity: currentLoc.rarity,
+      currentRoom: currentLoc.portalData.currentRoomCount,
+      expectedRooms: currentLoc.portalData.expectedRoomCount,
+      stability: currentLoc.stability,
+      locationId: locationId,
+    }
+
+    // Attempt artifact drop
+    const artifact = attemptArtifactDrop(getAllPortalArtifacts(), portalContext, obtainedArtifacts)
+
+    if (artifact) {
+      addDebugLog(
+        "artifact",
+        `🏆 Artifact dropped: ${artifact.name} (${artifact.rarity}) in ${currentLoc.name}`
+      )
+
+      // Add artifact as 4th treasure choice with special indicator
+      event.treasureChoices.push({
+        type: "item",
+        description: `⭐ ${artifact.name} - Portal Exclusive Artifact!`,
+        item: artifact as InventoryItem,
+      })
+    }
+
+    return event
+  }
+
   // Helper to generate AI narrative for locations
   const generateAINarrative = async (
     stats: PlayerStats,
@@ -896,7 +940,11 @@ export function DungeonCrawler() {
 
       const { event } = await response.json()
       addDebugLog("ai", `Narrative generated: ${event.entity} encounter [${duration}ms]`, event)
-      return event
+
+      // Inject artifact drops for treasure events
+      const eventWithArtifact = injectArtifactDrop(event, locationId)
+
+      return eventWithArtifact
     } catch (error) {
       const duration = Math.round(performance.now() - startTime)
       addDebugLog("error", `Failed to generate narrative after ${duration}ms: ${error}`)
@@ -1123,6 +1171,15 @@ export function DungeonCrawler() {
     if (choice.type === "item" && choice.item) {
       setInventory((prev) => [...prev, choice.item!])
       addLogEntry(`✨ Obtained: ${choice.item.name}`, choice.item.rarity)
+
+      // Track portal-exclusive artifacts globally
+      if (choice.item.portalExclusive?.globallyUnique) {
+        setObtainedArtifacts((prev) => [...prev, choice.item!.id])
+        addDebugLog(
+          "artifact",
+          `🏆 Artifact obtained and tracked: ${choice.item.name} (${obtainedArtifacts.length + 1}/${getAllPortalArtifacts().length})`
+        )
+      }
     } else if (choice.type === "gold" && choice.gold) {
       setBaseStats((prev) => ({ ...prev, gold: prev.gold + choice.gold! }))
       addLogEntry(`💰 Gained ${choice.gold} gold`, "gold")
@@ -2324,43 +2381,53 @@ export function DungeonCrawler() {
                       )}
                       {entry.treasureChoices && entry.showTreasureChoices && (
                         <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 animate-in fade-in duration-300">
-                          {entry.treasureChoices.map((treasureChoice) => (
-                            <div
-                              key={`treasure-choice-${entry.id}-${treasureChoice.type}-${treasureChoice.description.slice(0, 20)}`}
-                              className="choice-stagger p-4 bg-secondary/30 rounded border border-border/50 hover:border-accent hover:bg-accent/5 cursor-pointer transition-all duration-200 active:scale-95"
-                              style={{
-                                animationDelay: `${(entry.treasureChoices?.indexOf(treasureChoice) ?? 0) * 100}ms`,
-                              }}
-                              onClick={() => handleTreasureChoice(treasureChoice)}
-                            >
-                              <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-2">
-                                {treasureChoice.type}
+                          {entry.treasureChoices.map((treasureChoice) => {
+                            const isArtifact = treasureChoice.item?.portalExclusive?.globallyUnique
+                            const artifactClass = isArtifact
+                              ? "border-yellow-500 bg-yellow-900/20 hover:bg-yellow-900/30 shadow-lg shadow-yellow-500/20"
+                              : "border-border/50 hover:border-accent hover:bg-accent/5"
+
+                            return (
+                              <div
+                                key={`treasure-choice-${entry.id}-${treasureChoice.type}-${treasureChoice.description.slice(0, 20)}`}
+                                className={`choice-stagger p-4 bg-secondary/30 rounded border ${artifactClass} cursor-pointer transition-all duration-200 active:scale-95`}
+                                style={{
+                                  animationDelay: `${(entry.treasureChoices?.indexOf(treasureChoice) ?? 0) * 100}ms`,
+                                }}
+                                onClick={() => handleTreasureChoice(treasureChoice)}
+                              >
+                                <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-2">
+                                  {treasureChoice.type}
+                                  {isArtifact && (
+                                    <span className="ml-2 text-yellow-500">⭐ ARTIFACT</span>
+                                  )}
+                                </div>
+                                <div className="text-sm font-light text-foreground mb-2">
+                                  {treasureChoice.description}
+                                </div>
+                                {treasureChoice.item && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {treasureChoice.item.stats?.attack &&
+                                      `+${treasureChoice.item.stats.attack} ATK `}
+                                    {treasureChoice.item.stats?.defense &&
+                                      `+${treasureChoice.item.stats.defense} DEF `}
+                                    {treasureChoice.item.stats?.health &&
+                                      `+${treasureChoice.item.stats.health} HP`}
+                                  </div>
+                                )}
+                                {treasureChoice.gold && (
+                                  <div className="text-xs text-yellow-500">
+                                    +{treasureChoice.gold} gold
+                                  </div>
+                                )}
+                                {treasureChoice.healthRestore && (
+                                  <div className="text-xs text-green-500">
+                                    Restore {treasureChoice.healthRestore} HP
+                                  </div>
+                                )}
                               </div>
-                              <div className="text-sm font-light text-foreground mb-2">
-                                {treasureChoice.description}
-                              </div>
-                              {treasureChoice.item && (
-                                <div className="text-xs text-muted-foreground">
-                                  {treasureChoice.item.stats?.attack &&
-                                    `+${treasureChoice.item.stats.attack} ATK `}
-                                  {treasureChoice.item.stats?.defense &&
-                                    `+${treasureChoice.item.stats.defense} DEF `}
-                                  {treasureChoice.item.stats?.health &&
-                                    `+${treasureChoice.item.stats.health} HP`}
-                                </div>
-                              )}
-                              {treasureChoice.gold && (
-                                <div className="text-xs text-yellow-500">
-                                  +{treasureChoice.gold} gold
-                                </div>
-                              )}
-                              {treasureChoice.healthRestore && (
-                                <div className="text-xs text-green-500">
-                                  Restore {treasureChoice.healthRestore} HP
-                                </div>
-                              )}
-                            </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       )}
                       {/* Shop Inventory UI */}
@@ -2652,43 +2719,54 @@ export function DungeonCrawler() {
                           )}
                           {entry.treasureChoices && entry.showTreasureChoices && (
                             <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 animate-in fade-in duration-300">
-                              {entry.treasureChoices.map((treasureChoice) => (
-                                <div
-                                  key={`treasure-choice-mobile-${entry.id}-${treasureChoice.type}-${treasureChoice.description.slice(0, 20)}`}
-                                  className="choice-stagger p-4 bg-secondary/30 rounded border border-border/50 hover:border-accent hover:bg-accent/5 cursor-pointer transition-all duration-200 active:scale-95"
-                                  style={{
-                                    animationDelay: `${(entry.treasureChoices?.indexOf(treasureChoice) ?? 0) * 100}ms`,
-                                  }}
-                                  onClick={() => handleTreasureChoice(treasureChoice)}
-                                >
-                                  <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-2">
-                                    {treasureChoice.type}
+                              {entry.treasureChoices.map((treasureChoice) => {
+                                const isArtifact =
+                                  treasureChoice.item?.portalExclusive?.globallyUnique
+                                const artifactClass = isArtifact
+                                  ? "border-yellow-500 bg-yellow-900/20 hover:bg-yellow-900/30 shadow-lg shadow-yellow-500/20"
+                                  : "border-border/50 hover:border-accent hover:bg-accent/5"
+
+                                return (
+                                  <div
+                                    key={`treasure-choice-mobile-${entry.id}-${treasureChoice.type}-${treasureChoice.description.slice(0, 20)}`}
+                                    className={`choice-stagger p-4 bg-secondary/30 rounded border ${artifactClass} cursor-pointer transition-all duration-200 active:scale-95`}
+                                    style={{
+                                      animationDelay: `${(entry.treasureChoices?.indexOf(treasureChoice) ?? 0) * 100}ms`,
+                                    }}
+                                    onClick={() => handleTreasureChoice(treasureChoice)}
+                                  >
+                                    <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-2">
+                                      {treasureChoice.type}
+                                      {isArtifact && (
+                                        <span className="ml-2 text-yellow-500">⭐ ARTIFACT</span>
+                                      )}
+                                    </div>
+                                    <div className="text-sm font-light text-foreground mb-2">
+                                      {treasureChoice.description}
+                                    </div>
+                                    {treasureChoice.item && (
+                                      <div className="text-xs text-muted-foreground">
+                                        {treasureChoice.item.stats?.attack &&
+                                          `+${treasureChoice.item.stats.attack} ATK `}
+                                        {treasureChoice.item.stats?.defense &&
+                                          `+${treasureChoice.item.stats.defense} DEF `}
+                                        {treasureChoice.item.stats?.health &&
+                                          `+${treasureChoice.item.stats.health} HP`}
+                                      </div>
+                                    )}
+                                    {treasureChoice.gold && (
+                                      <div className="text-xs text-yellow-500">
+                                        +{treasureChoice.gold} gold
+                                      </div>
+                                    )}
+                                    {treasureChoice.healthRestore && (
+                                      <div className="text-xs text-green-500">
+                                        Restore {treasureChoice.healthRestore} HP
+                                      </div>
+                                    )}
                                   </div>
-                                  <div className="text-sm font-light text-foreground mb-2">
-                                    {treasureChoice.description}
-                                  </div>
-                                  {treasureChoice.item && (
-                                    <div className="text-xs text-muted-foreground">
-                                      {treasureChoice.item.stats?.attack &&
-                                        `+${treasureChoice.item.stats.attack} ATK `}
-                                      {treasureChoice.item.stats?.defense &&
-                                        `+${treasureChoice.item.stats.defense} DEF `}
-                                      {treasureChoice.item.stats?.health &&
-                                        `+${treasureChoice.item.stats.health} HP`}
-                                    </div>
-                                  )}
-                                  {treasureChoice.gold && (
-                                    <div className="text-xs text-yellow-500">
-                                      +{treasureChoice.gold} gold
-                                    </div>
-                                  )}
-                                  {treasureChoice.healthRestore && (
-                                    <div className="text-xs text-green-500">
-                                      Restore {treasureChoice.healthRestore} HP
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
+                                )
+                              })}
                             </div>
                           )}
                           {/* Shop Inventory UI (Mobile) */}
@@ -3114,6 +3192,15 @@ export function DungeonCrawler() {
                   >
                     <span className="text-base">🗺️</span>
                     <span>Portal Tools</span>
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="artifacts"
+                    className="flex-1 data-[state=active]:bg-accent/20 data-[state=active]:text-accent text-xs py-2 flex items-center justify-center gap-1.5"
+                  >
+                    <span className="text-base">🏆</span>
+                    <span>
+                      Artifacts ({obtainedArtifacts.length}/{getAllPortalArtifacts().length})
+                    </span>
                   </TabsTrigger>
                 </TabsList>
 
@@ -3863,6 +3950,99 @@ export function DungeonCrawler() {
                         </div>
                       </div>
                     </div>
+                  </div>
+                </TabsContent>
+
+                {/* Artifacts Tab */}
+                <TabsContent
+                  value="artifacts"
+                  className="flex-1 overflow-y-auto overflow-x-hidden mt-0 min-w-0 w-full hide-scrollbar"
+                >
+                  <div className="space-y-4 pb-4">
+                    <div className="text-sm text-muted-foreground mb-4">
+                      <div className="font-medium text-foreground mb-2">
+                        🏆 Portal-Exclusive Artifacts
+                      </div>
+                      <div className="text-xs">
+                        Rare treasures that can only be obtained once per game from specific portal
+                        themes.
+                      </div>
+                      <div className="text-xs mt-2 text-accent">
+                        Collection: {obtainedArtifacts.length}/{getAllPortalArtifacts().length}{" "}
+                        Artifacts Found
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {getAllPortalArtifacts().map((artifact) => {
+                        const obtained = obtainedArtifacts.includes(artifact.id)
+                        const rarityColor = RARITY_COLORS[artifact.rarity] || "text-gray-400"
+
+                        return (
+                          <div
+                            key={artifact.id}
+                            className={`p-4 rounded border transition-all ${
+                              obtained
+                                ? "bg-secondary/30 border-border/50"
+                                : "bg-secondary/10 border-border/20 opacity-40"
+                            }`}
+                          >
+                            <div className="flex items-start gap-3">
+                              <span className={`ra ${artifact.icon} text-2xl ${rarityColor}`} />
+                              <div className="flex-1 min-w-0">
+                                <div className={`font-medium mb-1 ${rarityColor}`}>
+                                  {obtained ? artifact.name : "???"}
+                                </div>
+                                {obtained ? (
+                                  <>
+                                    <div className="text-xs text-muted-foreground mb-2 capitalize">
+                                      {artifact.rarity} {artifact.type}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground mb-2">
+                                      {artifact.description}
+                                    </div>
+                                    {artifact.stats && (
+                                      <div className="text-xs text-accent">
+                                        {artifact.stats.attack && `+${artifact.stats.attack} ATK `}
+                                        {artifact.stats.defense &&
+                                          `+${artifact.stats.defense} DEF `}
+                                        {artifact.stats.health && `+${artifact.stats.health} HP`}
+                                      </div>
+                                    )}
+                                    {artifact.portalExclusive && (
+                                      <div className="text-[10px] text-muted-foreground/70 mt-2 italic">
+                                        ⭐ From: {artifact.portalExclusive.requiredPortalTheme}
+                                      </div>
+                                    )}
+                                  </>
+                                ) : (
+                                  <>
+                                    <div className="text-xs text-muted-foreground mb-2">
+                                      Not yet discovered
+                                    </div>
+                                    {artifact.portalExclusive?.requiredPortalTheme && (
+                                      <div className="text-[10px] text-muted-foreground/70 italic">
+                                        Found in: {artifact.portalExclusive.requiredPortalTheme}
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {obtainedArtifacts.length === getAllPortalArtifacts().length && (
+                      <div className="mt-6 p-4 bg-accent/10 rounded border border-accent/30 text-center">
+                        <div className="text-accent font-medium mb-1">🎉 Collection Complete!</div>
+                        <div className="text-xs text-muted-foreground">
+                          You've obtained all {getAllPortalArtifacts().length} portal-exclusive
+                          artifacts!
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </TabsContent>
               </Tabs>

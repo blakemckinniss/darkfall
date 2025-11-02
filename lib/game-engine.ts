@@ -33,6 +33,12 @@ export interface InventoryItem {
     scope?: "global" | "portal" | "encounter"
     portalRestriction?: string
   }
+  portalExclusive?: {
+    requiredPortalTheme?: string
+    requiredRarity?: Rarity
+    dropChance?: number
+    globallyUnique?: boolean
+  }
 }
 
 export interface ActiveEffect {
@@ -69,6 +75,7 @@ export interface Location {
   rarity: Rarity
   stability: number // Portal stability percentage (0-100)
   portalData?: PortalData
+  portalMetadata?: PortalMetadata
 }
 
 export interface TreasureChoice {
