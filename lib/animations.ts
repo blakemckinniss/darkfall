@@ -125,7 +125,7 @@ export const getDirectionalSlide = (
 // DAMAGE CONTEXT ANIMATIONS
 // ============================================================================
 
-export type DamageSource = "enemy" | "environment" | "self" | "heal"
+export type DamageSource = "enemy" | "environment" | "self" | "heal" | "gold"
 
 /**
  * Get animation direction based on damage source
@@ -137,6 +137,7 @@ export const getDamageDirection = (source: DamageSource): Direction => {
     environment: "top", // Environmental damage comes from above
     self: "center", // Self-inflicted damage doesn't move
     heal: "center", // Healing effects glow in place
+    gold: "bottom", // Gold rewards rise up from bottom
   }
 
   return directionMap[source]
@@ -149,6 +150,15 @@ export const getDamageStyle = (
   source: DamageSource,
   value: number
 ): { color: string; shadow: string; animation: string } => {
+  // Gold rewards
+  if (source === "gold") {
+    return {
+      color: "text-yellow-500",
+      shadow: "drop-shadow-[0_0_10px_rgba(234,179,8,0.6)]",
+      animation: "animate-pulse-subtle",
+    }
+  }
+
   const isHeal = source === "heal" || value > 0
 
   if (isHeal) {

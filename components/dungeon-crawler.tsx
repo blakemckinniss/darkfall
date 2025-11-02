@@ -857,7 +857,8 @@ export function DungeonCrawler() {
           event.entity,
           event.entityRarity,
           event.choices,
-          event.entityData
+          event.entityData,
+          event.treasureChoices
         )
       } else {
         // Fallback to static event if AI fails

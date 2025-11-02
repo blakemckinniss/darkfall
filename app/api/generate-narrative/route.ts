@@ -143,7 +143,7 @@ Respond ONLY with valid JSON matching this exact structure (no markdown, no extr
       }
     }
   ],
-  "treasureChoices": [ // OPTIONAL - only for treasure/loot events (entityType: "object")
+  "treasureChoices": [ // OPTIONAL - for any encounter (30% rate) - loot drops for enemies, treasures for objects
     {
       "type": "item" | "gold" | "health",
       "description": "string (clear description of reward)",
@@ -201,7 +201,9 @@ OUTCOME BALANCE:
 ENTITY TYPES: enemy (hostile), npc (can trade), object (interactive), creature (neutral), phenomenon (environmental)
 
 TREASURE CHOICE GENERATION (OPTIONAL - 30% of encounters):
-When generating treasure/loot events (entityType: "object"), you MAY include 2-3 balanced treasureChoices.
+When generating any encounter (enemy, object, etc.), you MAY include 2-3 balanced treasureChoices.
+- For enemies: treasureChoices represent loot dropped after defeating the enemy
+- For objects: treasureChoices represent discovered treasures or interactive loot
 Each choice must be roughly equal value but serve different playstyles.
 
 TREASURE CHOICE EXAMPLES:
@@ -257,6 +259,15 @@ ${portalContext ? `Use the portal theme to create thematically appropriate encou
       .replace(/```json\n?/g, "")
       .replace(/```\n?/g, "")
     const narrativeData = JSON.parse(cleanedText) as NarrativeData
+
+    // DEBUG: Log treasure choices generation
+    console.log("[narrative] DEBUG - AI Response:", {
+      hasTreasureChoices: !!narrativeData.treasureChoices,
+      treasureChoicesCount: narrativeData.treasureChoices?.length || 0,
+      entityType: narrativeData.entityType,
+      entity: narrativeData.entity,
+      fullTreasureChoices: narrativeData.treasureChoices,
+    })
 
     // Register AI-generated entity in the registry (if it's an enemy with stats)
     let registeredEntity = null
