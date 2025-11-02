@@ -23,6 +23,7 @@ import { saveGameState, loadGameState, type GeneratedPortrait } from "@/lib/game
 import type { Rarity, Stats } from "@/lib/types"
 import { ENTITIES, RARITY_COLORS, type EntityType } from "@/lib/entities"
 import type { DamageSource } from "@/lib/animations"
+import { maps as canonicalMaps } from "@/lib/entities/canonical/maps"
 
 interface LogEntry {
   id: string
@@ -2236,6 +2237,13 @@ export function DungeonCrawler() {
                     <span className="text-base">🐛</span>
                     <span>Debug Console</span>
                   </TabsTrigger>
+                  <TabsTrigger
+                    value="portal-tools"
+                    className="flex-1 data-[state=active]:bg-accent/20 data-[state=active]:text-accent text-xs py-2 flex items-center justify-center gap-1.5"
+                  >
+                    <span className="text-base">🗺️</span>
+                    <span>Portal Tools</span>
+                  </TabsTrigger>
                 </TabsList>
 
                 {/* AI Tools Tab */}
@@ -2890,6 +2898,101 @@ export function DungeonCrawler() {
                     <div className="text-[9px] text-muted-foreground">
                       Logs are automatically cleared after 100 entries. Types: SYSTEM (startup),
                       STATE (saves), GAME (events), AI (generation), ERROR (failures)
+                    </div>
+                  </div>
+                </TabsContent>
+
+                {/* Portal Tools Tab */}
+                <TabsContent
+                  value="portal-tools"
+                  className="flex-1 overflow-y-auto overflow-x-hidden mt-0 min-w-0 w-full hide-scrollbar"
+                >
+                  <div className="space-y-4 pb-4">
+                    <div className="text-sm text-muted-foreground mb-4">
+                      <div className="font-medium text-foreground mb-2">
+                        🗺️ Portal Map Generator
+                      </div>
+                      <div className="text-xs">
+                        Generate map items for portal testing. Click any map to add it to your
+                        inventory.
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {canonicalMaps.map((map) => (
+                        <Button
+                          key={map.id}
+                          variant="outline"
+                          className="h-auto p-4 flex flex-col items-start gap-2 hover:bg-accent/10 hover:border-accent transition-all"
+                          onClick={() => {
+                            // Skip if portal metadata is missing (shouldn't happen for canonical maps)
+                            if (!map.portalMetadata) return
+
+                            // Generate a unique map item instance
+                            const newMapItem: InventoryItem = {
+                              ...map,
+                              id: `${map.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                              type: "map",
+                              mapData: {
+                                locationName: map.locationName,
+                                entrances: map.entrances,
+                                rarity: map.rarity,
+                              },
+                              portalMetadata: map.portalMetadata,
+                            }
+                            setInventory((prev) => [...prev, newMapItem])
+                            addDebugLog(
+                              "game",
+                              `Generated map: ${map.name} (${map.locationName}) - ${map.rarity}`
+                            )
+                            addLogEntry(`Added ${map.name} to inventory`, "map", map.rarity)
+                          }}
+                        >
+                          <div className="flex items-center gap-2 w-full">
+                            <span className={`ra ${map.icon} text-xl`} />
+                            <div className="flex-1 text-left">
+                              <div className="font-medium text-sm">{map.name}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {map.locationName}
+                              </div>
+                            </div>
+                            <div
+                              className={`px-2 py-0.5 rounded text-[10px] font-medium bg-secondary/40 ${
+                                RARITY_COLORS[map.rarity as Rarity] || "text-foreground"
+                              }`}
+                            >
+                              {map.rarity}
+                            </div>
+                          </div>
+                          <div className="text-xs text-muted-foreground w-full flex items-center justify-between">
+                            <span>
+                              {map.portalMetadata?.expectedRoomCount || map.entrances} rooms
+                            </span>
+                            <span>Risk: {map.portalMetadata?.riskLevel || "unknown"}</span>
+                            <span>{map.entrances} uses</span>
+                          </div>
+                          {map.portalMetadata?.theme && (
+                            <div className="text-[10px] text-muted-foreground/70 w-full italic line-clamp-2">
+                              {map.portalMetadata.theme}
+                            </div>
+                          )}
+                        </Button>
+                      ))}
+                    </div>
+
+                    <div className="mt-6 p-4 bg-secondary/20 rounded border border-border/30">
+                      <div className="text-xs text-muted-foreground space-y-1">
+                        <div className="font-medium text-foreground mb-2">📋 Testing Guide</div>
+                        <div>1. Click a map button to add it to your inventory</div>
+                        <div>2. Switch to the Portal tab</div>
+                        <div>3. Click the map item to view details</div>
+                        <div>4. Click "Open Map" to create the portal</div>
+                        <div>5. Enter the portal to test AI-generated encounters</div>
+                        <div className="pt-2 border-t border-border/20 mt-2">
+                          <span className="font-medium">Tip:</span> Higher rarity maps have more
+                          rooms and harder encounters
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </TabsContent>
