@@ -1,6 +1,18 @@
 #!/bin/bash
 set -euo pipefail
 
+# Graceful degradation: Check dependencies
+command -v jq >/dev/null 2>&1 || exit 0
+
+# Set CLAUDE_PROJECT_DIR default if not provided
+: "${CLAUDE_PROJECT_DIR:=$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+
+# Source shared libraries
+SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+source "$SCRIPT_DIR/lib/validation-common.sh"
+source "$SCRIPT_DIR/lib/pattern-detection.sh"
+source "$SCRIPT_DIR/lib/typescript-checks.sh"
+
 # Read JSON input from stdin
 INPUT=$(cat)
 
@@ -8,109 +20,36 @@ INPUT=$(cat)
 PROMPT=$(echo "$INPUT" | jq -r '.prompt // ""')
 
 # ============================================================================
-# TASK TYPE DETECTION (Phase 1a)
+# TASK TYPE DETECTION & VALIDATION
 # ============================================================================
-detect_task_type() {
-  local prompt="$1"
-
-  # Priority order: most specific first
-  if echo "$prompt" | grep -qiE '\b(fix|bug|error|issue|crash|broken|failing|fails)\b'; then
-    echo "bugfix"
-  elif echo "$prompt" | grep -qiE '\b(refactor|clean|improve structure|reorganize|simplify)\b'; then
-    echo "refactor"
-  elif echo "$prompt" | grep -qiE '\b(performance|optimize|speed|slow|faster|memory|efficient)\b'; then
-    echo "performance"
-  elif echo "$prompt" | grep -qiE '\b(add|implement|create|new feature|build)\b'; then
-    echo "feature"
-  else
-    echo "general"
-  fi
-}
-
 TASK_TYPE=$(detect_task_type "$PROMPT")
 
+# Check for blocked patterns
+if check_blocked_patterns "$PROMPT"; then
+  OUTPUT=$(jq -n \
+    --arg reason "$(get_block_reason)" \
+    '{
+      decision: "block",
+      reason: $reason
+    }')
+  echo "$OUTPUT"
+  exit 0
+fi
+
+# Add helpful context about uncommitted changes and project state
+CONTEXT=""
+
 # ============================================================================
-# OUTDATED KNOWLEDGE RISK DETECTION (Phase 1b - CRITICAL)
-# Detects when AI knowledge may be outdated (e.g., Tailwind v4, React 19, etc.)
+# CRITICAL WARNINGS (Highest Priority)
 # ============================================================================
 
-# Technology Risk Database (inline for performance)
-# Format: "tech_name|release_date|risk_level|version_info"
-declare -a TECH_RISK_DB=(
-  "tailwindcss|2024-10|HIGH|v4.0 (breaking changes from v3)"
-  "tailwind|2024-10|HIGH|v4.0 (breaking changes from v3)"
-  "react|2024-12|HIGH|v19 (new features, some deprecations)"
-  "next.js|2024-10|MEDIUM|v15 (app router changes)"
-  "nextjs|2024-10|MEDIUM|v15 (app router changes)"
-  "vite|2024-11|MEDIUM|v5.x (config changes)"
-  "typescript|2023-11|MEDIUM|v5.x (new features)"
-  "node.js|2024-10|MEDIUM|v22 LTS"
-  "nodejs|2024-10|MEDIUM|v22 LTS"
-  "pnpm|2024-09|LOW|v9.x"
-  "bun|2024-09|MEDIUM|v1.x (rapidly evolving)"
-  "astro|2024-12|MEDIUM|v4.x (breaking changes)"
-  "svelte|2024-12|HIGH|v5 (runes, breaking changes)"
-  "vue|2024-05|MEDIUM|v3.4+ (new features)"
-)
+# OUTDATED KNOWLEDGE warnings FIRST (highest priority)
+OUTDATED_KNOWLEDGE_WARNINGS=$(detect_outdated_knowledge_risk "$PROMPT")
+if [ -n "$OUTDATED_KNOWLEDGE_WARNINGS" ]; then
+  CONTEXT+="$OUTDATED_KNOWLEDGE_WARNINGS"$'\n'
+fi
 
-detect_outdated_knowledge_risk() {
-  local prompt="$1"
-  local risk_warnings=""
-  local detected_risks=()
-
-  # Fast path: Check if prompt contains technical keywords
-  if ! echo "$prompt" | grep -qiE '\b(install|add|upgrade|migrate|config|package|import|from|use|setup)\b'; then
-    echo ""
-    return
-  fi
-
-  # HIGH PRIORITY: Package installation commands with versions
-  if echo "$prompt" | grep -qiE '(npm|pnpm|yarn|bun) (install|add).*@[0-9]+'; then
-    detected_risks+=("PACKAGE_INSTALL_VERSIONED")
-  fi
-
-  if echo "$prompt" | grep -qiE 'pip install.*==[0-9]+'; then
-    detected_risks+=("PYTHON_INSTALL_VERSIONED")
-  fi
-
-  # HIGH PRIORITY: Config file modifications
-  if echo "$prompt" | grep -qiE '(tailwind|vite|next|astro|svelte|vue)\.config\.(js|ts|mjs|cjs)'; then
-    detected_risks+=("CONFIG_FILE_MODIFICATION")
-  fi
-
-  # HIGH PRIORITY: Migration/upgrade keywords
-  if echo "$prompt" | grep -qiE '\b(upgrade|migrate|migration|update.*to|from.*to).*\b(v?[0-9]+|version)'; then
-    detected_risks+=("MIGRATION_DETECTED")
-  fi
-
-  # Check against technology risk database
-  for tech_entry in "${TECH_RISK_DB[@]}"; do
-    IFS='|' read -r tech_name release_date risk_level version_info <<< "$tech_entry"
-
-    # Check if technology is mentioned in prompt
-    if echo "$prompt" | grep -qiE "\b$tech_name\b"; then
-      # Additional context checks for high-risk scenarios
-      if echo "$prompt" | grep -qiE "\b$tech_name\b.*(install|config|setup|migrate|upgrade|v?[0-9]+)"; then
-        risk_warnings+="🚨 **OUTDATED KNOWLEDGE RISK DETECTED** 🚨"$'\n\n'
-        risk_warnings+="**Technology**: $(echo "$tech_name" | tr '[:lower:]' '[:upper:]')"$'\n'
-        risk_warnings+="**Risk Level**: $risk_level - $version_info"$'\n'
-        risk_warnings+="**Released**: $release_date (may be beyond knowledge cutoff)"$'\n\n'
-        risk_warnings+="**MANDATORY ACTION REQUIRED**:"$'\n'
-        risk_warnings+="1. 🔍 Search web for \"$tech_name latest version documentation\" or \"$tech_name $version_info\""$'\n'
-        risk_warnings+="2. 🤖 OR use Zen MCP with websearch: \`mcp__zen__chat\` with \`use_websearch=true\`"$'\n'
-        risk_warnings+="3. ✅ Verify current best practices before proceeding"$'\n\n'
-        risk_warnings+="**Why this matters**: Recent major versions often have breaking changes that"$'\n'
-        risk_warnings+="could cause project errors if you use outdated syntax or configuration."$'\n\n'
-        risk_warnings+="⚠️  **This is NOT optional** - proceeding without websearch may result in broken code."$'\n\n'
-        break  # Only show one risk warning per prompt to avoid spam
-      fi
-    fi
-  done
-
-  echo "$risk_warnings"
-}
-
-# Optional: Check package.json for version mismatches (if exists and reasonable size)
+# Version mismatch warnings
 check_package_version_mismatch() {
   local prompt="$1"
   local warnings=""
@@ -140,119 +79,28 @@ check_package_version_mismatch() {
   echo "$warnings"
 }
 
-OUTDATED_KNOWLEDGE_WARNINGS=$(detect_outdated_knowledge_risk "$PROMPT")
 VERSION_MISMATCH_WARNINGS=$(check_package_version_mismatch "$PROMPT")
-
-# ============================================================================
-# PROMPT QUALITY ANALYSIS (Phase 1c - Highest ROI)
-# ============================================================================
-check_prompt_quality() {
-  local prompt="$1"
-  local quality_warnings=""
-
-  # Detect extremely vague prompts
-  if echo "$prompt" | grep -qiE '^\s*(fix it|make it better|handle this|do it|help)\s*$'; then
-    quality_warnings+="⚠️  **Vague Prompt Detected** - Consider specifying: What's wrong? What should happen? Which files?"$'\n'
-  fi
-
-  # Suggest file paths if component/function mentioned but no path
-  if echo "$prompt" | grep -qiE '\b(component|function|class|file|module)\b' && ! echo "$prompt" | grep -qE '\.(ts|tsx|js|jsx|css|json)'; then
-    quality_warnings+="💡 **Tip**: Include file paths (e.g., \`components/foo.tsx\`) for faster assistance."$'\n'
-  fi
-
-  echo "$quality_warnings"
-}
-
-# ============================================================================
-# DOCUMENTATION UPDATE DETECTION (Phase 1e)
-# Detect changes that likely require ADR.md, CLAUDE.md, or NOTES.md updates
-# ============================================================================
-check_doc_update_triggers() {
-  local prompt="$1"
-  local doc_reminders=""
-
-  # ADR.md triggers: architectural decisions
-  if echo "$prompt" | grep -qiE '\b(architecture|state management|api design|database|deployment|build system|integration pattern|design pattern)\b'; then
-    doc_reminders+="📋 **Reminder**: Changes to architecture/design patterns may require **docs/ADR.md** update"$'\n'
-  fi
-
-  # CLAUDE.md triggers: development workflow changes
-  if echo "$prompt" | grep -qiE '\b(typescript config|dev command|workflow|slash command|hook|build process|lint rule|prettier|tsconfig)\b'; then
-    doc_reminders+="📋 **Reminder**: Workflow/config changes may require **CLAUDE.md** update"$'\n'
-  fi
-
-  # NOTES.md triggers: critical items tracking
-  if echo "$prompt" | grep -qiE '\b(critical|urgent|blocker|high priority|must fix|breaking change)\b'; then
-    doc_reminders+="📋 **Reminder**: Critical items should be logged to **docs/NOTES.md** (auto-logged if 🔴/⭐76-100)"$'\n'
-  fi
-
-  echo "$doc_reminders"
-}
-
-PROMPT_QUALITY_WARNINGS=$(check_prompt_quality "$PROMPT")
-DOC_UPDATE_REMINDERS=$(check_doc_update_triggers "$PROMPT")
-
-# ============================================================================
-# SMART CONTEXT FILTERING (Phase 1d)
-# Extract files mentioned in prompt for intelligent error filtering
-# ============================================================================
-extract_mentioned_files() {
-  local prompt="$1"
-
-  # Extract explicit file paths from prompt
-  echo "$prompt" | grep -oE '[a-zA-Z0-9/_.-]+\.(ts|tsx|js|jsx|css|json)' || echo ""
-}
-
-MENTIONED_FILES=$(extract_mentioned_files "$PROMPT")
-
-# Validation rules
-BLOCKED_PATTERNS=(
-  "create.*README"
-  "write.*documentation"
-  "generate.*example"
-  "create.*demo"
-)
-
-# Check for blocked patterns
-for pattern in "${BLOCKED_PATTERNS[@]}"; do
-  if echo "$PROMPT" | grep -qiE "$pattern"; then
-    # Block and explain
-    OUTPUT=$(jq -n \
-      --arg reason "Per project guidelines: Avoid creating documentation, demos, or examples unless explicitly requested. Focus on production code." \
-      '{
-        decision: "block",
-        reason: $reason
-      }')
-    echo "$OUTPUT"
-    exit 0
-  fi
-done
-
-# Add helpful context about uncommitted changes and project state
-CONTEXT=""
-
-# Add OUTDATED KNOWLEDGE warnings FIRST (highest priority)
-if [ -n "$OUTDATED_KNOWLEDGE_WARNINGS" ]; then
-  CONTEXT+="$OUTDATED_KNOWLEDGE_WARNINGS"$'\n'
-fi
-
-# Add version mismatch warnings
 if [ -n "$VERSION_MISMATCH_WARNINGS" ]; then
   CONTEXT+="$VERSION_MISMATCH_WARNINGS"$'\n'
 fi
 
-# Add prompt quality warnings if any
+# Prompt quality warnings
+PROMPT_QUALITY_WARNINGS=$(check_prompt_quality "$PROMPT")
 if [ -n "$PROMPT_QUALITY_WARNINGS" ]; then
   CONTEXT+="$PROMPT_QUALITY_WARNINGS"$'\n'
 fi
 
-# Add documentation update reminders if any
+# Documentation update reminders
+DOC_UPDATE_REMINDERS=$(check_doc_update_triggers "$PROMPT")
 if [ -n "$DOC_UPDATE_REMINDERS" ]; then
   CONTEXT+="$DOC_UPDATE_REMINDERS"$'\n'
 fi
 
+# Extract mentioned files for smart filtering
+MENTIONED_FILES=$(extract_mentioned_files "$PROMPT")
+
 # ============================================================================
-# TASK-SPECIFIC CHECKLISTS (Phase 1b - excluding security)
+# TASK-SPECIFIC CHECKLISTS
 # ============================================================================
 add_task_checklist() {
   local task_type="$1"
@@ -291,7 +139,7 @@ add_task_checklist() {
 
 add_task_checklist "$TASK_TYPE"
 
-# Add mandatory task requirements
+# Add mandatory task requirements (kept inline for simplicity)
 CONTEXT+="## 🎯 Task Completion Requirements (MANDATORY)"$'\n\n'
 CONTEXT+="For EVERY task you perform, you MUST:"$'\n\n'
 CONTEXT+="1. **State Initial Confidence (0-100%) - MANDATORY**"$'\n'
@@ -483,169 +331,14 @@ if [ -d "$CLAUDE_PROJECT_DIR/.git" ]; then
 fi
 
 # ============================================================================
-# SMART TYPE/LINT CHECKING (Phase 1d - Intelligent Filtering)
-# Only check files relevant to the prompt or recently modified
+# SMART TYPE/LINT CHECKING (Using shared library)
 # ============================================================================
 if [ -f "$CLAUDE_PROJECT_DIR/package.json" ] && command -v pnpm &> /dev/null; then
-  # Cache management (skip checks if run within last 60 seconds and no file changes)
-  CACHE_DIR="/tmp/claude-hook-cache"
-  CACHE_FILE="$CACHE_DIR/last-check-${SESSION_ID:-$$}"
-  CACHE_MAX_AGE=60  # seconds (optimized for performance)
-  SKIP_CHECKS=false
-
-  mkdir -p "$CACHE_DIR"
-
-  if [ -f "$CACHE_FILE" ]; then
-    LAST_CHECK=$(cat "$CACHE_FILE" 2>/dev/null || echo "0")
-    CURRENT_TIME=$(date +%s)
-    TIME_DIFF=$((CURRENT_TIME - LAST_CHECK))
-
-    if [ "$TIME_DIFF" -lt "$CACHE_MAX_AGE" ]; then
-      # Check if any files were modified since last check
-      MODIFIED_SINCE_CHECK=$(find "$CLAUDE_PROJECT_DIR" -type f \( -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" \) -newer "$CACHE_FILE" 2>/dev/null | wc -l)
-
-      if [ "$MODIFIED_SINCE_CHECK" -eq 0 ]; then
-        SKIP_CHECKS=true
-        CONTEXT+="### ⚡ TypeScript & Linting Status"$'\n'
-        CONTEXT+="Using cached results from ${TIME_DIFF}s ago (no file changes detected)."$'\n\n'
-      fi
-    fi
+  TYPESCRIPT_ESLINT_CONTEXT=$(run_typescript_eslint_checks "$MENTIONED_FILES")
+  if [ -n "$TYPESCRIPT_ESLINT_CONTEXT" ]; then
+    CONTEXT+="$TYPESCRIPT_ESLINT_CONTEXT"
   fi
-
-  if [ "$SKIP_CHECKS" = false ]; then
-    # Update cache timestamp
-    date +%s > "$CACHE_FILE"
-
-    # Get list of modified TypeScript/JavaScript files from git
-    GIT_MODIFIED_FILES=""
-    if [ -d "$CLAUDE_PROJECT_DIR/.git" ]; then
-      GIT_MODIFIED_FILES=$(git -C "$CLAUDE_PROJECT_DIR" diff --name-only --diff-filter=ACMR HEAD 2>/dev/null | grep -E '\.(ts|tsx|js|jsx)$' || true)
-    fi
-
-    # Combine mentioned files from prompt + git modified files for relevance
-    RELEVANT_FILES="$MENTIONED_FILES"$'\n'"$GIT_MODIFIED_FILES"
-    RELEVANT_FILES=$(echo "$RELEVANT_FILES" | grep -v '^$' | sort -u || echo "")
-
-    # Determine check mode: smart (relevant files only) or full (no relevant files identified)
-    if [ -n "$RELEVANT_FILES" ]; then
-      CHECK_MODE="smart"
-      FILE_COUNT=$(echo "$RELEVANT_FILES" | wc -l | tr -d ' ')
-    else
-      CHECK_MODE="full"
-    fi
-
-  # ============================================================================
-  # PARALLEL EXECUTION: Run TypeScript + ESLint checks simultaneously (2x speedup)
-  # ============================================================================
-
-  # Setup temporary files for parallel execution
-  TSC_OUTPUT_FILE="$CACHE_DIR/tsc-output-${SESSION_ID:-$$}"
-  LINT_OUTPUT_FILE="$CACHE_DIR/lint-output-${SESSION_ID:-$$}"
-
-  # Start TypeScript check in background
-  (
-    # Always run full typecheck (filtering happens after)
-    cd "$CLAUDE_PROJECT_DIR" && pnpm tsc --noEmit 2>&1 || true
-  ) > "$TSC_OUTPUT_FILE" &
-  TSC_PID=$!
-
-  # Start ESLint check in background
-  (
-    if [ "$CHECK_MODE" = "smart" ] && [ -n "$RELEVANT_FILES" ]; then
-      # Targeted lint check on relevant files only
-      LINT_FILES=$(echo "$RELEVANT_FILES" | tr '\n' ' ')
-      cd "$CLAUDE_PROJECT_DIR" && pnpm eslint $LINT_FILES 2>&1 || true
-    else
-      # Full project lint
-      cd "$CLAUDE_PROJECT_DIR" && pnpm lint 2>&1 || true
-    fi
-  ) > "$LINT_OUTPUT_FILE" &
-  LINT_PID=$!
-
-  # Wait for both checks to complete
-  wait $TSC_PID
-  wait $LINT_PID
-
-  # Process TypeScript results with smart filtering
-  TYPECHECK_OUTPUT=$(cat "$TSC_OUTPUT_FILE")
-  if [ "$CHECK_MODE" = "smart" ] && [ -n "$RELEVANT_FILES" ]; then
-    # Filter output to relevant files only
-    FILTERED_OUTPUT=""
-    while IFS= read -r file; do
-      if [ -n "$file" ]; then
-        FILE_ERRORS=$(echo "$TYPECHECK_OUTPUT" | grep "^$file(" || true)
-        if [ -n "$FILE_ERRORS" ]; then
-          FILTERED_OUTPUT+="$FILE_ERRORS"$'\n'
-        fi
-      fi
-    done <<< "$RELEVANT_FILES"
-    TYPECHECK_ERRORS=$(echo "$FILTERED_OUTPUT" | grep -c "error TS" || true)
-    DISPLAY_OUTPUT="$FILTERED_OUTPUT"
-  else
-    TYPECHECK_ERRORS=$(echo "$TYPECHECK_OUTPUT" | grep -c "error TS" || true)
-    DISPLAY_OUTPUT="$TYPECHECK_OUTPUT"
-  fi
-
-  if [ "$TYPECHECK_ERRORS" -gt 0 ]; then
-    CONTEXT+="### 🔴 TypeScript Status (MANDATORY CHECK)"$'\n'
-    if [ "$CHECK_MODE" = "smart" ]; then
-      CONTEXT+="❌ $TYPECHECK_ERRORS type error(s) in $FILE_COUNT relevant file(s)"$'\n\n'
-    else
-      CONTEXT+="❌ $TYPECHECK_ERRORS type error(s) detected (full project check)"$'\n\n'
-    fi
-    CONTEXT+="**Errors:**"$'\n'
-    CONTEXT+='```'$'\n'
-    CONTEXT+="$(echo "$DISPLAY_OUTPUT" | grep "error TS" | head -5)"$'\n'
-    CONTEXT+='```'$'\n\n'
-    CONTEXT+="**Action required:** These MUST be fixed before committing per strict TypeScript policy."$'\n\n'
-  else
-    CONTEXT+="### ✅ TypeScript Status"$'\n'
-    if [ "$CHECK_MODE" = "smart" ]; then
-      CONTEXT+="No type errors in $FILE_COUNT relevant file(s)."$'\n\n'
-    else
-      CONTEXT+="No type errors detected."$'\n\n'
-    fi
-  fi
-
-  # Process ESLint results
-  LINT_OUTPUT=$(cat "$LINT_OUTPUT_FILE")
-  LINT_ERRORS=$(echo "$LINT_OUTPUT" | grep -c "✖" | head -1 || echo "0")
-  LINT_WARNINGS=$(echo "$LINT_OUTPUT" | grep -oP '\d+(?= warning)' | head -1 || echo "0")
-
-  if [ "$LINT_ERRORS" != "0" ] && [ "$LINT_ERRORS" != "" ]; then
-    CONTEXT+="### 🔴 Linting Status (MANDATORY CHECK)"$'\n'
-    if [ "$CHECK_MODE" = "smart" ]; then
-      CONTEXT+="❌ Issues found in $FILE_COUNT relevant file(s)"$'\n'
-    else
-      CONTEXT+="❌ Linting issues found (full project check)"$'\n'
-    fi
-    if [ "$LINT_WARNINGS" != "0" ] && [ "$LINT_WARNINGS" != "" ]; then
-      CONTEXT+="⚠️  $LINT_WARNINGS warning(s) detected."$'\n'
-    fi
-    CONTEXT+='```'$'\n'
-    CONTEXT+="$(echo "$LINT_OUTPUT" | tail -15)"$'\n'
-    CONTEXT+='```'$'\n\n'
-    CONTEXT+="**Action required:** Fix linting errors before committing."$'\n\n'
-  elif [ "$LINT_WARNINGS" != "0" ] && [ "$LINT_WARNINGS" != "" ]; then
-    CONTEXT+="### ⚠️  Linting Status"$'\n'
-    if [ "$CHECK_MODE" = "smart" ]; then
-      CONTEXT+="$LINT_WARNINGS warning(s) in relevant files. Run \`pnpm lint\` to review."$'\n\n'
-    else
-      CONTEXT+="$LINT_WARNINGS warning(s) detected. Run \`pnpm lint\` to review."$'\n\n'
-    fi
-  else
-    CONTEXT+="### ✅ Linting Status"$'\n'
-    if [ "$CHECK_MODE" = "smart" ]; then
-      CONTEXT+="No linting issues in $FILE_COUNT relevant file(s)."$'\n\n'
-    else
-      CONTEXT+="No linting errors or warnings detected."$'\n\n'
-    fi
-  fi
-
-  # Cleanup temporary files
-  rm -f "$TSC_OUTPUT_FILE" "$LINT_OUTPUT_FILE"
-  fi  # Close SKIP_CHECKS=false block
-fi  # Close main checks block
+fi
 
 # Output context if available
 if [ -n "$CONTEXT" ]; then

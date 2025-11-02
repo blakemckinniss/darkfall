@@ -157,6 +157,7 @@ export function DungeonCrawler() {
   const [activeTab, setActiveTab] = useState<string>("portal")
   const [activeLocation, setActiveLocation] = useState<string | null>(null)
   const [portalSessions, setPortalSessions] = useState<Record<string, PortalSession>>({})
+  const [obtainedArtifacts, setObtainedArtifacts] = useState<string[]>([])
 
   const [logEntries, setLogEntries] = useState<LogEntry[]>([])
   const [currentEvent, setCurrentEvent] = useState<GameEvent | null>(null)
@@ -398,11 +399,12 @@ export function DungeonCrawler() {
 
       setPlayerPortrait(savedState.activePortrait)
       setGeneratedPortraits(savedState.generatedPortraits || [])
+      setObtainedArtifacts(savedState.obtainedArtifacts || [])
       console.log("[v0] Player portrait loaded:", savedState.activePortrait)
       console.log("[v0] Generated portraits loaded:", savedState.generatedPortraits)
       addDebugLog(
         "state",
-        `Game loaded: Level ${savedState.playerStats.level}, ${savedState.inventory.length} items`
+        `Game loaded: Level ${savedState.playerStats.level}, ${savedState.inventory.length} items, ${savedState.obtainedArtifacts?.length || 0} artifacts`
       )
     } else {
       addDebugLog("system", "No saved game state found - starting fresh")
@@ -421,6 +423,7 @@ export function DungeonCrawler() {
         activeEffects,
         openLocations,
         portalSessions,
+        obtainedArtifacts,
         activePortrait: playerPortrait,
         generatedPortraits,
       }
@@ -435,6 +438,7 @@ export function DungeonCrawler() {
     activeEffects,
     openLocations,
     portalSessions,
+    obtainedArtifacts,
     playerPortrait,
     generatedPortraits,
   ])
@@ -501,6 +505,7 @@ export function DungeonCrawler() {
         activeEffects,
         openLocations,
         portalSessions,
+        obtainedArtifacts,
         activePortrait: playerPortrait,
         generatedPortraits,
       }
@@ -600,18 +605,34 @@ export function DungeonCrawler() {
       effectHealth += effect.statChanges.health || 0
     })
 
+    // Apply portal buffs if in a portal
+    let portalBuffAttack = 0
+    let portalBuffDefense = 0
+    let portalBuffHealth = 0
+
+    if (activeLocation && portalSessions[activeLocation]) {
+      portalSessions[activeLocation].activeBuffs.forEach((buff) => {
+        portalBuffAttack += buff.statChanges.attack || 0
+        portalBuffDefense += buff.statChanges.defense || 0
+        portalBuffHealth += buff.statChanges.health || 0
+      })
+    }
+
     return {
-      attack: baseStats.attack + bonusAttack + effectAttack,
-      defense: baseStats.defense + bonusDefense + effectDefense,
-      maxHealth: baseStats.maxHealth + bonusHealth + effectHealth,
+      attack: baseStats.attack + bonusAttack + effectAttack + portalBuffAttack,
+      defense: baseStats.defense + bonusDefense + effectDefense + portalBuffDefense,
+      maxHealth: baseStats.maxHealth + bonusHealth + effectHealth + portalBuffHealth,
       bonusAttack,
       bonusDefense,
       bonusHealth,
       effectAttack,
       effectDefense,
       effectHealth,
+      portalBuffAttack,
+      portalBuffDefense,
+      portalBuffHealth,
     }
-  }, [baseStats, equippedItems, activeEffects])
+  }, [baseStats, equippedItems, activeEffects, activeLocation, portalSessions])
 
   const playerStats = {
     ...baseStats,

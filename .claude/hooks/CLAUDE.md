@@ -2,6 +2,49 @@
 
 This directory contains custom hooks for Claude Code that enforce project-specific policies and enhance the development workflow.
 
+## Architecture: Shared Libraries
+
+**NEW: Modular Design** - Hooks now use shared libraries to reduce code duplication and improve maintainability.
+
+### Directory Structure
+```
+.claude/hooks/
+├── lib/
+│   ├── validation-common.sh      # Shared validation functions
+│   ├── pattern-detection.sh      # Task type and risk detection
+│   └── typescript-checks.sh      # TypeScript/ESLint checking
+├── prompt-validator.sh            # 350 lines (was 663) - uses shared libs
+├── session-start.sh               # Uses inline functions
+├── pre-tool-pattern-prevention.sh # 122 lines
+├── validate-directory-creation.sh # 52 lines
+├── validate-markdown-creation.sh  # 147 lines
+├── tool-awareness.py              # 48 lines
+├── posttooluse-metacognition.py   # 474 lines
+└── post-edit-format.sh            # 81 lines
+```
+
+### Shared Library Functions
+
+**lib/validation-common.sh:**
+- `check_prompt_quality()` - Detects vague prompts, suggests improvements
+- `extract_mentioned_files()` - Extracts file paths for smart filtering
+- `check_blocked_patterns()` - Validates against blocked patterns
+- `get_block_reason()` - Returns standardized block messages
+
+**lib/pattern-detection.sh:**
+- `detect_task_type()` - Identifies bugfix/feature/refactor/performance tasks
+- `get_tech_risk_database()` - Technology version risk database
+- `detect_outdated_knowledge_risk()` - Warns about potentially outdated AI knowledge
+- `check_doc_update_triggers()` - Suggests ADR.md/CLAUDE.md/NOTES.md updates
+
+**lib/typescript-checks.sh:**
+- `run_typescript_eslint_checks()` - Parallel TypeScript + ESLint checking with smart caching
+
+### Performance Impact
+- **Zero overhead**: Libraries are sourced once at hook startup
+- **Reduced size**: prompt-validator.sh reduced from 663 to 350 lines (47% reduction)
+- **Maintainability**: Shared code in one place (DRY principle)
+
 ## Hooks Overview
 
 ### 1. Directory Creation Validation
@@ -882,6 +925,149 @@ Hook detects: 4 sequential tasks ("then" patterns)
 Output: "⚡ Parallelization Opportunity: Multiple sequential tasks detected. Run them in parallel:
 
 💡 Launch multiple Task agents simultaneously (up to 10 parallel)"
+```
+
+### Code Quality & Performance Detection (Phase 1)
+
+**Added**: 2025-11-02
+
+The meta-cognition hook now includes **code quality and performance anti-pattern detection** to catch maintainability issues and scalability problems early.
+
+#### Code Quality Patterns (8 patterns)
+
+1. **Long Method Detection** (>50 lines)
+   - Suggests breaking into smaller functions
+   - Example: "📏 **Long Method**: 85 lines detected. Consider breaking into smaller, focused functions (< 50 lines)."
+
+2. **High Cyclomatic Complexity** (10+ conditionals)
+   - Detects complex branching logic
+   - Example: "🌀 **High Complexity**: 15 conditionals detected. Consider simplifying logic or extracting functions."
+
+3. **Deep Nesting** (>4 levels)
+   - Identifies deeply nested code blocks
+   - Example: "🪆 **Deep Nesting**: 6 levels detected. Consider extracting nested logic into separate functions."
+
+4. **God Object/Class** (>500 lines)
+   - Detects classes violating Single Responsibility Principle
+   - Example: "🏛️ **God Object**: 750 line class. Consider splitting responsibilities (Single Responsibility Principle)."
+
+5. **Missing Error Handling**
+   - Finds try blocks without catch/except
+   - Example: "⚠️ **Missing Error Handler**: Try block without catch/except clause. Add error handling."
+
+6. **Debug Statements** (3+ console.log/print)
+   - Catches debugging code left in production
+   - Example: "🐛 **Debug Statements**: 5 console.log/print found. Remove before committing."
+
+7. **Technical Debt Markers** (5+ TODO/FIXME)
+   - Tracks accumulating technical debt
+   - Example: "📝 **Technical Debt**: 8 TODO/FIXME markers. Consider addressing before adding more."
+
+8. **Magic Numbers** (5+ numeric literals)
+   - Suggests using named constants
+   - Example: "🔢 **Magic Numbers**: 7 numeric literals found. Consider using named constants."
+
+#### Performance Anti-Patterns (6 patterns)
+
+1. **N+1 Query Detection**
+   - Identifies database/API calls inside loops
+   - Example: "⚡ **N+1 Query Detected**: Database/API call inside loop. Consider bulk fetching or caching."
+
+2. **Nested Loops** (O(n²) or O(n³))
+   - Detects algorithmic complexity issues
+   - Example: "🔄 **Nested Loops**: O(n³) complexity detected. Consider using hash maps, sets, or better algorithms."
+
+3. **String Concatenation in Loops**
+   - Inefficient string building
+   - Example: "📝 **String Concat in Loop**: Use array.join() or StringBuilder instead of += for better performance."
+
+4. **Synchronous File Operations**
+   - Blocking I/O detection
+   - Example: "🐌 **Blocking I/O**: 3 synchronous file operation(s). Consider async alternatives for non-blocking I/O."
+
+5. **Repeated Expensive Calculations**
+   - Missing memoization opportunities
+   - Example: "🔁 **Repeated Operations**: sort called 3 times. Consider caching/memoization."
+
+6. **Object Creation in Loops**
+   - Memory allocation inefficiency
+   - Example: "🏗️ **Object Creation in Loop**: Creating objects/arrays in loop. Consider pre-allocation if size is known."
+
+#### Performance Impact
+
+- **Code quality checks**: ~5-10ms per Write/Edit operation
+- **Performance checks**: ~5-10ms per Write/Edit operation
+- **Total overhead**: ~10-20ms (acceptable for quality improvement)
+- **Hint limiting**: Maximum 2 quality + 2 performance hints per tool call
+
+#### Metrics Tracked
+
+All patterns log to `.claude/hook-metrics.log`:
+- `quality_long_method` - Long method detections
+- `quality_high_complexity` - Complexity warnings
+- `quality_deep_nesting` - Nesting level violations
+- `quality_god_object` - God class detections
+- `quality_missing_error_handler` - Missing error handling
+- `quality_debug_statements` - Debug code left in
+- `quality_tech_debt_markers` - TODO/FIXME accumulation
+- `quality_magic_numbers` - Magic number usage
+- `perf_n_plus_one` - N+1 query patterns
+- `perf_nested_loops` - Nested loop complexity
+- `perf_double_loop` - O(n²) patterns
+- `perf_string_concat_loop` - String concat inefficiency
+- `perf_blocking_io` - Synchronous operations
+- `perf_repeated_calculation` - Missing memoization
+- `perf_object_creation_loop` - Loop allocation issues
+
+#### Example Detections
+
+**Code Quality:**
+```python
+# Long method with high complexity
+def process_data(data):
+    if condition1:
+        if condition2:
+            if condition3:
+                if condition4:
+                    if condition5:
+                        # ... 60 more lines
+                        pass
+    # TODO: Refactor this
+    # FIXME: Handle edge cases
+    console.log(data)  # Debug statement
+```
+Output: "📏 **Long Method**: 65 lines detected..." + "🌀 **High Complexity**: 12 conditionals..."
+
+**Performance:**
+```javascript
+async function loadUserPosts(users) {
+    for (const user of users) {
+        const posts = await db.query(`SELECT * FROM posts WHERE userId = ${user.id}`);
+        for (const post of posts) {
+            for (const comment of post.comments) {
+                result += comment.text;
+            }
+        }
+    }
+}
+```
+Output: "⚡ **N+1 Query Detected**: Database call inside loop..." + "🔄 **Nested Loops**: O(n³) complexity..."
+
+#### Configuration
+
+**Adjust Thresholds** (in posttooluse-metacognition.py):
+```python
+# Line 260: Long method threshold
+if lines > 50:  # Change to 75, 100, etc.
+
+# Line 266: Complexity threshold
+if conditionals > 10:  # Change to 15, 20, etc.
+
+# Line 279: Nesting level threshold
+if nesting_levels > 4:  # Change to 5, 6, etc.
+
+# Line 285: God object threshold
+if lines > 500:  # Change to 750, 1000, etc.
 ```
 
 ### Agent/Skill Awareness System

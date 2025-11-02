@@ -1,0 +1,58 @@
+{
+  "quality_long_method": {
+    "threshold": 50,
+    "trigger_count": 1,
+    "last_trigger": "2025-11-02T18:47:30.249780+00:00",
+    "cooldown_until": null,
+    "default_threshold": 50
+  },
+  "quality_high_complexity": {
+    "threshold": 10,
+    "trigger_count": 0,
+    "last_trigger": null,
+    "cooldown_until": null,
+    "default_threshold": 10
+  },
+  "quality_deep_nesting": {
+    "threshold": 4,
+    "trigger_count": 0,
+    "last_trigger": null,
+    "cooldown_until": null,
+    "default_threshold": 4
+  },
+  "quality_debug_statements": {
+    "threshold": 3,
+    "trigger_count": 1,
+    "last_trigger": "2025-11-02T18:53:07.934869+00:00",
+    "cooldown_until": null,
+    "default_threshold": 3
+  },
+  "quality_tech_debt_markers": {
+    "threshold": 5,
+    "trigger_count": 1,
+    "last_trigger": "2025-11-02T18:53:07.934920+00:00",
+    "cooldown_until": null,
+    "default_threshold": 5
+  },
+  "quality_magic_numbers": {
+    "threshold": 5,
+    "trigger_count": 1,
+    "last_trigger": "2025-11-02T18:53:07.934969+00:00",
+    "cooldown_until": null,
+    "default_threshold": 5
+  },
+  "perf_blocking_io": {
+    "threshold": 1,
+    "trigger_count": 0,
+    "last_trigger": null,
+    "cooldown_until": null,
+    "default_threshold": 1
+  },
+  "perf_repeated_calculation": {
+    "threshold": 3,
+    "trigger_count": 0,
+    "last_trigger": null,
+    "cooldown_until": null,
+    "default_threshold": 3
+  }
+}

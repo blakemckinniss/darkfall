@@ -27,6 +27,7 @@ export interface GameState {
   activeEffects: ActiveEffect[]
   openLocations: Location[]
   portalSessions: Record<string, PortalSession>
+  obtainedArtifacts: string[] // IDs of portal-exclusive artifacts obtained globally
   activePortrait: string | null
   generatedPortraits: GeneratedPortrait[]
 }

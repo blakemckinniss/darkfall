@@ -40,6 +40,7 @@ describe("game-state", () => {
     activeEffects: [],
     openLocations: [],
     portalSessions: {},
+    obtainedArtifacts: [],
     activePortrait: null,
     generatedPortraits: [],
   }

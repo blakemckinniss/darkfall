@@ -8,6 +8,9 @@
 
 set -euo pipefail
 
+# Graceful degradation: Check dependencies
+command -v jq >/dev/null 2>&1 || exit 0
+
 # Read JSON input from stdin
 INPUT=$(cat)
 

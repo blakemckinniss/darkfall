@@ -64,6 +64,14 @@ export const treasureSchema = entityMetadataSchema.extend({
   icon: z.string().default("ra-crystal-ball"),
   stats: statsSchema.optional(),
   description: z.string().optional(),
+  portalExclusive: z
+    .object({
+      requiredPortalTheme: z.string().optional(), // Portal theme required for drop (e.g., "Dragon's Lair")
+      requiredRarity: raritySchema.optional(), // Min portal rarity required
+      dropChance: z.number().min(0).max(1).default(0.15), // 15% default drop rate
+      globallyUnique: z.boolean().default(true), // Can only be obtained once per game
+    })
+    .optional(),
 })
 
 // Consumable schema
