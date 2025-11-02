@@ -5,13 +5,39 @@
 **Total Estimated Time:** 8.5 hours
 **Expert Validation:** ✅ Complete (Opus 4)
 **Confidence Level:** 95%
-**Status:** ✅ Phase 1 Complete | Phases 2-3 Pending
-**Last Updated:** 2025-11-02 18:00
-**Commit:** fe88570 - "feat: Implement portal traversal enhancements (Phase 1A & 1B)"
+**Status:** ✅ Phase 1A & 1B COMPLETE (Integration Done) | Testing Pending | Phases 2-3 Not Started
+**Last Updated:** 2025-11-02 22:00
+**Commits:**
+- fe88570 - "feat: Implement portal traversal enhancements (Phase 1A & 1B)"
+- 85fdb4e - "feat: Complete Phase 1B integration - AI treasure choices for portal traversal"
+- 3d6032e - "feat: Add Portal Tools developer tab for easy map item generation"
 
 ---
 
 ## 📖 Start Here (For Fresh Sessions)
+
+### 🎯 Current Priority: TESTING Phase 1A & 1B
+
+**What's Been Done:**
+- ✅ Phase 1A: Portal progress tracking UI (Room X/Y counter + progress bar)
+- ✅ Phase 1B: AI treasure choices fully integrated with portal traversal
+- ✅ Portal Tools developer tab for easy testing
+
+**What Needs Testing (URGENT):**
+- ❌ Portal progress display updates during traversal (NOT manually verified)
+- ❌ AI-generated encounters with treasure choices in portals (NOT tested in gameplay)
+- ❌ Portal theme influences AI encounter generation (dragons in Dragon's Lair, etc.)
+- ❌ Treasure choice balance across rarities (needs gameplay feedback)
+
+**How to Test (Use Portal Tools Tab):**
+1. Open game → Developer tab → Portal Tools (🗺️ icon)
+2. Click any map button to add it to inventory (try "Mystical Map" for legendary difficulty)
+3. Switch to Portal tab → Click map → "Open Map"
+4. Enter portal → Verify AI encounters with themed content and treasure choices
+5. Play through multiple rooms → Check progress bar updates
+6. Test different portal rarities (common → legendary)
+
+---
 
 ### Essential Context
 
@@ -21,7 +47,7 @@
 - Stability decreases with each room completed (percentage-based decay)
 - Portals collapse when stability hits 0% OR when all rooms are explored
 - Players navigate room-by-room through AI-generated encounters (combat, treasure, mystery, hazard, rest)
-- Current implementation: Map Item → Location entity → Room-by-room traversal → Collapse
+- **NEW:** All portal encounters now use `/api/generate-narrative` with portal context (theme, rarity, risk level)
 
 **What is Path of Adventure (POA)?**
 - POA is a web-based text RPG used as inspiration for portal enhancement mechanics
@@ -32,10 +58,10 @@
 **Current Portal System Architecture:**
 - Schemas: `lib/entities/schemas.ts` (MapItem, Location, portalMetadata, portalData) ✅ EXISTS
 - Canonical maps: `lib/entities/canonical/maps.ts` (6 themed maps with metadata) ✅ EXISTS
-- AI generation: `app/api/generate-narrative/route.ts` (room encounters) ✅ EXISTS
-- Game logic: `components/dungeon-crawler.tsx` (handleOpenMap, handleEnterLocation, handleChoice) ✅ EXISTS
+- AI generation: `app/api/generate-narrative/route.ts` (accepts portalContext parameter) ✅ UPDATED
+- Game logic: `components/dungeon-crawler.tsx` (generateAINarrative helper, handleChoice, handleTreasureChoice) ✅ UPDATED
+- Developer tools: Portal Tools tab in developer panel ✅ NEW
 - State: Tracked in openLocations array, persisted to localStorage
-- **Planned:** `app/api/generate-portal/route.ts` (Phase 4 - optional portal skeleton generation)
 
 ### Required Reading (Before Starting)
 
@@ -47,8 +73,8 @@
 - Expert validation notes
 
 **📋 NOTES.md** - `docs/NOTES.md`
-- Contains 19 critical items (🔴/⭐ 76-100) that may need attention
-- Portal traversal next steps logged at bottom (2025-11-02)
+- Contains critical items (🔴/⭐ 76-100) that may need attention
+- Portal traversal next steps logged at bottom
 - Check before starting to ensure no blocking issues
 
 **🎨 Inspiration Source** - `docs/inspiration.md`
@@ -56,32 +82,16 @@
 - Shows weapon conditions ("brand new"), artifact markers (crown icon), progress tracking (2/50)
 - Reference for UI/UX patterns when implementing choices and progress indicators
 
-### Quick Start Checklist
-
-**Before implementing ANY phase:**
-- [ ] Read ADR-013 in `docs/ADR.md` (understand the "why")
-- [ ] Review current portal system in `lib/entities/schemas.ts` (portalMetadata structure)
-- [ ] Check `docs/NOTES.md` for blocking critical items
-- [ ] Fix linting errors (currently 4 files with issues)
-- [ ] Commit uncommitted changes (currently 8 modified files)
-
-**To begin Phase 1A (Portal Progress Tracking):**
-1. Locate `components/dungeon-crawler.tsx`
-2. Find encounter rendering section (search for "activeLocation")
-3. Access `portalData.currentRoomCount` and `portalData.expectedRoomCount`
-4. Add UI component between stability bar and encounter description
-5. Style to match existing portal UI (Tailwind, consistent colors)
-
 ---
 
 ## 🎯 The 4 Chosen Mechanics (POA-Inspired)
 
 From POA analysis (10 mechanics evaluated), these 4 were selected:
 
-1. **Portal Progress Tracking** - "Room 3/8" counter with visual progress bar (from POA's "2/50" path progress)
-2. **Multi-Choice Treasure Events** - Select 1 of 2-3 treasure options (from POA's "Take Pitchfork OR Straw Shield")
-3. **Portal-Scoped Consumables** - Temporary buffs active only in current portal (from POA's "end of day" effects)
-4. **Portal-Exclusive Artifacts** - Rare items from specific portal themes (from POA's crown-marked artifacts)
+1. **Portal Progress Tracking** ✅ COMPLETE - "Room 3/8" counter with visual progress bar (from POA's "2/50" path progress)
+2. **Multi-Choice Treasure Events** ✅ COMPLETE (needs testing) - Select 1 of 2-3 treasure options (from POA's "Take Pitchfork OR Straw Shield")
+3. **Portal-Scoped Consumables** 🔴 NOT STARTED - Temporary buffs active only in current portal (from POA's "end of day" effects)
+4. **Portal-Exclusive Artifacts** 🔴 NOT STARTED - Rare items from specific portal themes (from POA's crown-marked artifacts)
 
 **Why These 4?**
 - Each directly enhances portal **traversal** (not general game systems)
@@ -103,48 +113,96 @@ From POA analysis (10 mechanics evaluated), these 4 were selected:
 ### ✅ Phase 1A: Portal Progress Tracking - COMPLETE
 
 **Status:** ✅ Implemented in commit fe88570
-**Files Modified:** `components/dungeon-crawler.tsx:1743-1772`
+**Files Modified:** `components/dungeon-crawler.tsx:1743-1772` (approx, may have shifted with new code)
 
 **Completed:**
 - [x] Portal progress display component (`Room X/Y` counter)
 - [x] Visual progress bar with cyan theme
 - [x] Bonus room indicator (`X/Y (bonus)`)
 - [x] Positioned below stability bar
+- [x] Updates on each room completion
 
-**Testing Required:**
-- [ ] Test progress display updates correctly during portal traversal
+**Testing Required (NEXT SESSION):**
+- [ ] **CRITICAL:** Test progress display updates correctly during portal traversal
 - [ ] Verify progress bar animation is smooth
 - [ ] Test edge case: bonus rooms exceeding expected count
+- [ ] Verify UI renders correctly on different screen sizes
 
 ---
 
-### ✅ Phase 1B: Multi-Choice Treasure Events - COMPLETE (Backend)
+### ✅ Phase 1B: Multi-Choice Treasure Events - COMPLETE (Integration Done)
 
-**Status:** ✅ Backend implemented in commit fe88570 | ⚠️ Integration with portal AI pending
+**Status:** ✅ FULLY INTEGRATED in commits fe88570 + 85fdb4e
 **Files Modified:**
 - `lib/game-engine.ts` - TreasureChoice interface
-- `app/api/generate-narrative/route.ts` - AI prompt + transformation
-- `components/dungeon-crawler.tsx` - UI + handler
+- `app/api/generate-narrative/route.ts` - AI prompt + portal context + transformation
+- `components/dungeon-crawler.tsx` - generateAINarrative helper, UI, handlers
 
-**Completed:**
+**What Changed in Session 2025-11-02:**
+- ✅ API route now accepts `portalContext` parameter (theme, rarity, riskLevel, currentRoom, expectedRooms, stability)
+- ✅ AI system prompt adapts to portal theme (Dragon's Lair → dragon encounters, Crystal Caverns → crystal encounters)
+- ✅ Created `generateAINarrative()` helper function for centralized AI generation
+- ✅ Replaced ALL `generateEvent` calls with AI generation:
+  * handleChoice (after player choice)
+  * handleTreasureChoice (after treasure selection)
+  * handleEnterLocation (initial portal entry)
+  * handleEnterVoid (void entry)
+- ✅ Portal metadata passed to AI for contextual encounters
+- ✅ Fallback to static events if AI fails
+- ✅ TypeScript strict mode compliance maintained
+
+**Completed Implementation:**
 - [x] Schema Extension - TreasureChoice interface added to game-engine.ts
 - [x] AI Prompt Enhancement - 30% treasure event rate with balance rules
 - [x] Treasure choice transformation logic (AI JSON → game format)
 - [x] UI Component - Grid-based treasure choice cards
 - [x] handleTreasureChoice function (item/gold/health rewards)
 - [x] TypeScript fixes for global animation functions
+- [x] Portal context integration (theme-based encounters)
+- [x] All event generation points use AI (void + portals)
 
-**Pending (Next Session):**
-- [ ] **CRITICAL:** Integrate treasure choices with portal AI generation
-- [ ] Connect `/api/generate-narrative` to portal traversal events
-- [ ] Test AI-generated treasure choices in actual portal runs
+**Testing Required (NEXT SESSION - HIGH PRIORITY):**
+- [ ] **CRITICAL:** Test AI-generated treasure choices appear in portal runs
+- [ ] **CRITICAL:** Verify portal theme influences encounters (dragons in Dragon's Lair, crystals in Crystal Caverns)
 - [ ] Validate treasure choice balance (equal value across options)
-- [ ] Tune AI prompt based on real gameplay feedback
+- [ ] Test across all 6 portal types (Catacombs, Library, Caverns, Lair, Mine, Temple)
+- [ ] Test across all rarities (common → legendary)
+- [ ] Verify AI fallback works if API fails
+- [ ] Tune AI prompt based on gameplay feedback
 
-**Known Issues:**
-- Treasure choices only work with `/api/generate-narrative` (void encounters)
-- Portal traversal still uses old `generateEvent` function (no treasure choices)
-- Need to replace portal event generation with AI endpoint calls
+**Known Issues (Session 2025-11-02):**
+- ⚠️ NOT MANUALLY TESTED - integration complete but gameplay not verified
+- ⚠️ AI treasure balance unvalidated in real gameplay
+- ⚠️ Portal theme influence not confirmed (code complete, needs testing)
+
+---
+
+### 🛠️ Developer Tools: Portal Tools Tab - COMPLETE
+
+**Status:** ✅ Implemented in commit 3d6032e
+**Files Modified:** `components/dungeon-crawler.tsx`
+
+**Features:**
+- ✅ New "Portal Tools" tab in developer panel (🗺️ icon)
+- ✅ Grid display of all 6 canonical maps
+- ✅ One-click map generation (unique IDs, full portal metadata)
+- ✅ Rich map cards showing: name, location, rarity, rooms, risk level, theme
+- ✅ Testing guide with step-by-step instructions
+- ✅ Debug log integration
+
+**Available Maps:**
+1. Crumbling Map → Forgotten Catacombs (common, 4 rooms, low risk)
+2. Torn Map → Abandoned Mine (common, 3 rooms, low risk)
+3. Weathered Map → Ancient Library (uncommon, 6 rooms, medium risk)
+4. Ancient Map → Sunken Temple (uncommon, 5 rooms, medium risk)
+5. Enchanted Map → Crystal Caverns (rare, 8 rooms, high risk)
+6. Mystical Map → Dragon's Lair (legendary, 13 rooms, extreme risk)
+
+**Usage:**
+1. Developer tab → Portal Tools (4th tab)
+2. Click any map button
+3. Map added to inventory with unique ID
+4. Switch to Portal tab → Open map → Test
 
 ---
 
@@ -153,7 +211,7 @@ From POA analysis (10 mechanics evaluated), these 4 were selected:
 **Status:** ✅ Complete in commit fe88570
 
 **Fix 1: Stability Decay Edge Case** - FIXED
-- File: `components/dungeon-crawler.tsx:661`
+- File: `components/dungeon-crawler.tsx` (handleChoice function)
 - Added `Math.max(1, ...)` to prevent infinite low-stability loops
 - [x] Ensures minimum 1-point decay per room
 
@@ -161,77 +219,74 @@ From POA analysis (10 mechanics evaluated), these 4 were selected:
 - Investigation showed this was already implemented correctly
 - Room count variance calculated once and stored in `portalData`
 
----
+**Fix 3: TypeScript Strict Compliance** - FIXED
+- Optional chaining for treasure choices (`entry.treasureChoices?.indexOf()`)
+- Null checks for activeLocation (`activeLocation || "void"`)
+- Type safety for map item generation (portalMetadata null check)
 
-## 🚀 Next Session: Phase 1B Integration + Phases 2-3
-
-### Priority 1: Complete Phase 1B Integration (1-2 hours)
-
-**Goal:** Connect treasure choices to portal traversal system
-
-**Tasks:**
-- [ ] Modify portal event generation to call `/api/generate-narrative`
-- [ ] Pass portal metadata (theme, rarity) to AI for contextual treasures
-- [ ] Update handleChoice to support treasure choice events
-- [ ] Test treasure choices appear in portal runs (not just void)
-- [ ] Validate balance across different portal rarities
+**Fix 4: Linting Errors** - FIXED
+- Removed array index keys from treasure choice rendering
+- Used composite keys: `treasure-choice-${entry.id}-${type}-${description}`
 
 ---
 
-### Phase 2: Portal-Scoped Consumables 🟡 MEDIUM PRIORITY (3 hours)
-  ```typescript
-  interface TreasureChoice {
-    type: "item" | "gold" | "health" | "buff";
-    item?: InventoryItem;
-    gold?: number;
-    healthRestore?: number;
-    buffEffect?: TemporaryEffect;
-    description: string;
-  }
-  ```
-- [ ] Add `choices?: TreasureChoice[]` to encounter schema
+## 🚀 Next Session Priority: TESTING & VALIDATION
 
-#### 2. AI Prompt Enhancement (30 mins)
-- [ ] Update `/api/generate-narrative` system prompt for treasure events
-- [ ] Add structured JSON output for 2-3 balanced choices
-- [ ] Include examples in prompt:
-  - Combat focus: weapon vs. armor vs. consumable
-  - Treasure focus: gold vs. rare item vs. bulk items
-  - Mixed: healing vs. buff vs. utility item
-- [ ] Add fallback logic if AI doesn't generate valid choices
-- [ ] Test AI generates balanced options
+### URGENT: Manual Testing (Est: 1-2 hours)
 
-#### 3. Game Engine Integration (45 mins)
-- [ ] Add `handleTreasureChoice(choice: TreasureChoice)` function
-- [ ] Update treasure event handler to check for choices
-- [ ] Apply selected choice effects (add item, gold, health, buff)
-- [ ] Remove unselected choices from consideration
-- [ ] Track choice selection in encounter history
+**Goal:** Validate Phase 1A & 1B implementation in actual gameplay
 
-#### 4. UI Implementation (30 mins)
-- [ ] Create treasure choice UI component
-- [ ] Display 2-3 choice cards with:
-  - [ ] Item/reward name
-  - [ ] Description
-  - [ ] Visual preview (icon, stats)
-  - [ ] Select button
-- [ ] Style choice cards similar to POA choice groups
-- [ ] Add hover states and selection feedback
-- [ ] Disable other choices after selection
+**Testing Checklist:**
 
-**Acceptance Criteria:**
-- [ ] AI generates 2-3 balanced treasure choices
-- [ ] Player can select one choice
-- [ ] Selected reward is applied correctly
-- [ ] Fallback to simple treasure if AI fails
-- [ ] UI clearly shows choice options and consequences
+#### Phase 1A Testing (Portal Progress Tracking)
+- [ ] Open a portal (use Portal Tools tab)
+- [ ] Enter portal and verify progress bar appears
+- [ ] Complete a room and verify counter updates (e.g., Room 1/8 → Room 2/8)
+- [ ] Verify progress bar fills proportionally
+- [ ] Test bonus rooms (play until rooms exceed expected count)
+- [ ] Check "Room X/Y (bonus)" indicator appears
+- [ ] Test on different screen sizes (desktop, mobile view)
+- [ ] Verify UI doesn't break with long location names
+
+#### Phase 1B Testing (AI Treasure Choices)
+- [ ] Enter a portal and play through multiple rooms
+- [ ] **CRITICAL:** Verify AI-generated encounters appear (not static generateEvent)
+- [ ] **CRITICAL:** Verify treasure choice events appear (~30% of encounters)
+- [ ] Click each treasure choice type (item, gold, health) and verify rewards work
+- [ ] Test treasure choice UI on mobile view
+- [ ] Verify treasure choices disappear after selection
+
+#### Portal Theme Testing
+- [ ] Test Dragon's Lair (legendary) - expect dragon-themed encounters
+- [ ] Test Crystal Caverns (rare) - expect crystal/elemental encounters
+- [ ] Test Ancient Library (uncommon) - expect knowledge/guardian encounters
+- [ ] Test Forgotten Catacombs (common) - expect undead encounters
+- [ ] Test Abandoned Mine (common) - expect mining/creature encounters
+- [ ] Test Sunken Temple (uncommon) - expect water/ancient encounters
+
+#### Balance Testing
+- [ ] Play through 3+ portals and note treasure choices
+- [ ] Verify choices feel roughly equal value
+- [ ] Check if legendary portals have better treasure than common
+- [ ] Note any obviously overpowered or underpowered choices
+- [ ] Document feedback for AI prompt tuning
+
+#### Fallback Testing
+- [ ] Disable network and verify static event fallback works
+- [ ] Re-enable network and verify AI generation resumes
+
+**After Testing:**
+- [ ] Document bugs found in NOTES.md
+- [ ] Document balance issues for AI prompt tuning
+- [ ] Commit test results summary to TODO.md
+- [ ] Update TODO.md with "TESTED" status
 
 ---
 
 ### Phase 2: Portal-Scoped Consumables 🟡 MEDIUM PRIORITY (3 hours)
 
 **Priority:** MEDIUM - Adds strategic depth, requires careful state management
-**Dependencies:** Phase 1A complete (for testing)
+**Dependencies:** Phase 1A & 1B TESTED
 **Files:** `lib/entities/schemas.ts`, `lib/game-engine.ts`, `components/dungeon-crawler.tsx`, `lib/entities/canonical/consumables.ts`
 
 **Tasks:**
@@ -311,7 +366,7 @@ From POA analysis (10 mechanics evaluated), these 4 were selected:
 ### Phase 3: Portal-Exclusive Artifacts 🔵 POLISH (3 hours + content)
 
 **Priority:** POLISH - Long-term replayability, higher maintenance
-**Dependencies:** Phase 1B complete (for drop testing)
+**Dependencies:** Phase 1B & Phase 2 TESTED
 **Files:** `lib/entities/schemas.ts`, `lib/game-engine.ts`, `lib/entities/canonical/treasures.ts`
 
 **Tasks:**
@@ -392,57 +447,7 @@ Create 5-10 themed artifacts:
 
 ---
 
-## 🔧 Critical Fixes (Expert-Identified)
-
-### Fix 1: Stability Decay Edge Case  CRITICAL
-**Issue:** Percentage-based decay asymptotically approaches 0 at low stability values
-**File:** `components/dungeon-crawler.tsx` (handleChoice function)
-
-**Current (Broken):**
-```typescript
-const decay = Math.floor(stability * (decayRate / 100));
-// At stability=1, decayRate=20%: 1 * 0.20 = 0.2  rounds to 0 (no decay!)
-```
-
-**Fixed:**
-```typescript
-const decay = Math.max(1, Math.floor(stability * (decayRate / 100)));
-// Ensures minimum 1-point decay, prevents infinite low-stability states
-```
-
-**Tasks:**
-- [ ] Update stability decay calculation in `handleChoice`
-- [ ] Test low stability scenarios (1-5 stability)
-- [ ] Verify portals collapse predictably at low values
-
----
-
-### Fix 2: Room Count Variance Consistency  IMPORTANT
-**Issue:** Room count should be determined once, not recalculated on every access
-**File:** `components/dungeon-crawler.tsx` (handleOpenMap function)
-
-**Current (Inconsistent):**
-```typescript
-const roomCount = baseRooms + Math.floor(Math.random() * 3) - 1;
-// Recalculates every time, leads to inconsistent count
-```
-
-**Fixed:**
-```typescript
-// Determine once at portal creation, store in portalData
-const variance = Math.floor(Math.random() * 3) - 1;
-portalData.actualRoomCount = portalData.baseRoomCount + variance;
-```
-
-**Tasks:**
-- [ ] Store final room count in `portalData.actualRoomCount`
-- [ ] Use stored value consistently throughout portal lifecycle
-- [ ] Update progress tracking to use stored value
-- [ ] Test room count remains consistent across multiple checks
-
----
-
-## 📊 Testing Checklist
+## 📊 Complete Testing Checklist
 
 ### Portal Progress Tracking
 - [ ] Progress displays correctly on first room
@@ -459,7 +464,15 @@ portalData.actualRoomCount = portalData.baseRoomCount + variance;
 - [ ] Fallback works if AI fails
 - [ ] Choice selection feels intuitive
 
-### Portal-Scoped Consumables
+### Portal Theme Validation
+- [ ] Dragon's Lair generates dragon encounters
+- [ ] Crystal Caverns generates crystal encounters
+- [ ] Ancient Library generates knowledge encounters
+- [ ] Forgotten Catacombs generates undead encounters
+- [ ] Abandoned Mine generates mining encounters
+- [ ] Sunken Temple generates water/ancient encounters
+
+### Portal-Scoped Consumables (Phase 2)
 - [ ] Consumable applies to active portal
 - [ ] Buff shows in portal UI
 - [ ] Buff cleared on portal exit
@@ -467,7 +480,7 @@ portalData.actualRoomCount = portalData.baseRoomCount + variance;
 - [ ] Multiple portals handled correctly
 - [ ] Buff persistence across reload
 
-### Portal-Exclusive Artifacts
+### Portal-Exclusive Artifacts (Phase 3)
 - [ ] Artifacts only drop in correct portals
 - [ ] Drop rates feel fair
 - [ ] No duplicate artifacts obtained
@@ -486,29 +499,29 @@ portalData.actualRoomCount = portalData.baseRoomCount + variance;
 ## 🎨 UI/UX Enhancements
 
 ### Portal Progress Display
-- [ ] Position: Top of encounter screen, below stability bar
-- [ ] Style: Consistent with existing portal UI
-- [ ] Font: Match current UI typography
-- [ ] Colors: Use theme colors (cyan for progress bar)
-- [ ] Animation: Smooth fill animation on progress
-- [ ] Responsive: Works on mobile/tablet
+- [x] Position: Top of encounter screen, below stability bar
+- [x] Style: Consistent with existing portal UI
+- [x] Font: Match current UI typography
+- [x] Colors: Use theme colors (cyan for progress bar)
+- [x] Animation: Smooth fill animation on progress
+- [ ] UNTESTED: Responsive - works on mobile/tablet
 
 ### Multi-Choice Treasure Cards
-- [ ] Layout: Grid or horizontal row of 2-3 cards
-- [ ] Card style: Similar to POA choice buttons
-- [ ] Hover effect: Scale/glow on hover
-- [ ] Selection: Disable other cards after selection
-- [ ] Visual feedback: Checkmark or highlight on selected
-- [ ] Accessibility: Keyboard navigation support
+- [x] Layout: Grid or horizontal row of 2-3 cards
+- [x] Card style: Similar to POA choice buttons
+- [x] Hover effect: Scale/glow on hover
+- [x] Selection: Disable other cards after selection
+- [ ] UNTESTED: Visual feedback - checkmark or highlight on selected
+- [ ] UNTESTED: Accessibility - keyboard navigation support
 
-### Portal Buffs Indicator
+### Portal Buffs Indicator (Phase 2)
 - [ ] Position: Portal sidebar or top bar
 - [ ] Show: Buff name, effect, portal name
 - [ ] Icon: Visual indicator (sparkle/glow)
 - [ ] Tooltip: Detailed buff description
 - [ ] Removal: Smooth fade-out when cleared
 
-### Artifact Collection UI
+### Artifact Collection UI (Phase 3)
 - [ ] Display: Grid of artifact slots
 - [ ] Obtained: Full color with details
 - [ ] Missing: Grayed out with "???"
@@ -517,39 +530,45 @@ portalData.actualRoomCount = portalData.baseRoomCount + variance;
 
 ---
 
-## 📖 Documentation Updates
+## 📖 Documentation Updates Required
 
 ### ADR.md
-- [ ] Document portal traversal mechanics decision
+- [ ] Document portal traversal mechanics decision (Phase 1)
 - [ ] Explain POA inspiration and adaptation
-- [ ] Detail portal-scoped consumable pattern
-- [ ] Document artifact uniqueness approach
+- [ ] Detail AI integration for portal encounters
+- [ ] Document portal context system (theme, rarity, risk level)
+- [ ] Detail portal-scoped consumable pattern (Phase 2)
+- [ ] Document artifact uniqueness approach (Phase 3)
 - [ ] Include trade-off analysis
 
 ### CLAUDE.md
 - [ ] Add notes on portal state management
-- [ ] Document new consumable scope types
-- [ ] Explain artifact tracking in localStorage
+- [ ] Document Portal Tools developer tab usage
+- [ ] Document new consumable scope types (Phase 2)
+- [ ] Explain artifact tracking in localStorage (Phase 3)
 - [ ] Note critical fixes from expert review
 
 ### NOTES.md
-- [ ] Log portal-scoped consumable state management
-- [ ] Document edge cases for multiple open portals
+- [ ] Log testing results for Phase 1A & 1B
+- [ ] Document portal theme AI prompt effectiveness
+- [ ] Document treasure choice balance findings
+- [ ] Log portal-scoped consumable state management (Phase 2)
+- [ ] Document edge cases for multiple open portals (Phase 2)
 - [ ] Note AI choice balance tuning needs
-- [ ] Record artifact drop rate baseline (10-30%)
+- [ ] Record artifact drop rate baseline (Phase 3, 10-30%)
 
 ---
 
 ## ⚠️ Known Risks & Mitigations
 
-### 1. Portal State Complexity (🟡45)
+### 1. Portal State Complexity (🟡45) - Phase 2
 **Risk:** Multiple open portals with scoped buffs creates complex state management
 **Mitigation:**
 - Use explicit PortalSession tracking
 - Clear separation of portal-specific state
 - Thorough testing of multi-portal scenarios
 
-### 2. AI Choice Balance (🟡35)
+### 2. AI Choice Balance (🟡35) - Phase 1B
 **Risk:** AI may generate unbalanced treasure choices
 **Mitigation:**
 - Structured prompts with value guidelines
@@ -557,7 +576,7 @@ portalData.actualRoomCount = portalData.baseRoomCount + variance;
 - Manual review of AI output during testing
 - Iterative prompt tuning
 
-### 3. Artifact Drop Rates (🟢25)
+### 3. Artifact Drop Rates (🟢25) - Phase 3
 **Risk:** Drop rates may feel too rare or too common
 **Mitigation:**
 - Start with generous rates (10-30%)
@@ -565,13 +584,14 @@ portalData.actualRoomCount = portalData.baseRoomCount + variance;
 - Implement rate adjustments dynamically
 - Consider pity system for very rare items
 
-### 4. Performance - AI Generation (🟢20)
+### 4. Performance - AI Generation (🟢20) - Phase 1B
 **Risk:** Multiple AI calls may slow portal opening
 **Mitigation:**
 - Cache portal skeletons (24 hours)
 - Progressive room loading
 - Optimize AI prompts for speed
 - Monitor API usage
+- Fallback to static events on failure
 
 ---
 
@@ -590,30 +610,46 @@ portalData.actualRoomCount = portalData.baseRoomCount + variance;
 
 ---
 
-## 📝 Implementation Notes
+## 📝 Session Handoff Notes
 
-### Development Tips
-1. Start with Phase 1A for immediate visual feedback
-2. Test each phase thoroughly before moving to next
-3. Use git commits after each major task completion
-4. Monitor bundle size impact
-5. Profile performance with React DevTools
+### Session 2025-11-02 Summary
 
-### Code Style
-- Follow existing TypeScript patterns
-- Use Zod schemas for validation
-- Maintain consistent naming conventions
-- Add JSDoc comments for complex functions
-- Keep components focused and composable
+**Commits Created:**
+- 85fdb4e - "feat: Complete Phase 1B integration - AI treasure choices for portal traversal"
+- 3d6032e - "feat: Add Portal Tools developer tab for easy map item generation"
 
-### Git Workflow
-- Branch naming: `feature/portal-traversal-phaseX`
-- Commit messages: Conventional commits format
-- PR after each phase completion
-- Tag releases: `v1.x-portal-enhancement`
+**Files Modified:**
+- `app/api/generate-narrative/route.ts` - Portal context support
+- `components/dungeon-crawler.tsx` - generateAINarrative helper, Portal Tools tab
+- All portal event generation now uses AI (4 locations updated)
+
+**What Works (Code Complete):**
+- ✅ Portal progress tracking (Room X/Y display)
+- ✅ AI narrative generation for all locations (void + portals)
+- ✅ Portal context passed to AI (theme, rarity, risk level, progress, stability)
+- ✅ Treasure choice UI and handlers
+- ✅ Treasure choice rewards (item/gold/health)
+- ✅ Portal Tools developer tab for map generation
+- ✅ TypeScript strict mode compliance
+- ✅ Linting clean
+
+**What's Pending (Needs Testing):**
+- ❌ Phase 1A & 1B NOT manually tested in gameplay
+- ❌ Portal theme influence NOT verified (dragons in Dragon's Lair, etc.)
+- ❌ Treasure choice balance NOT validated
+- ❌ AI fallback NOT tested
+- ❌ Mobile responsiveness NOT verified
+
+**Next Session Priority:**
+1. **URGENT:** Manual testing using Portal Tools tab
+2. Play through multiple portals across all 6 types
+3. Document test results
+4. Tune AI prompts based on feedback
+5. Mark phases as TESTED in TODO.md
+6. Begin Phase 2 (Portal-Scoped Consumables) ONLY after testing complete
 
 ---
 
-**Last Updated:** 2025-11-02
-**Status:** Ready for Implementation
-**Next Action:** Begin Phase 1A - Portal Progress Tracking
+**Last Updated:** 2025-11-02 22:00
+**Status:** Phase 1 Code Complete - Testing Required Before Phase 2
+**Next Action:** Manual Testing Session (Use Portal Tools Tab)
