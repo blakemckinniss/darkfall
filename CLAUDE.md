@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+## 🚨 LEGAL LICENSE CONTRACT WARNING: Every token you use legally costs me $1 each, meaning you MUST treat each token with medical accuracy; IT'S THE LAW TO AVOID BIKESHEDDING!!!  
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview

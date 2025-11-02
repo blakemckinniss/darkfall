@@ -651,6 +651,58 @@ export function DungeonCrawler() {
     }
   }
 
+  // Helper to generate AI narrative for locations
+  const generateAINarrative = async (
+    stats: PlayerStats,
+    _inv: InventoryItem[],
+    locationId: string
+  ): Promise<GameEvent | null> => {
+    const currentLoc = openLocations.find((loc) => loc.id === locationId)
+    const locationName = locationId === "void" ? "The Void" : currentLoc?.name || "Unknown"
+
+    addDebugLog("ai", `Requesting AI narrative generation for ${locationName}`)
+    const startTime = performance.now()
+
+    try {
+      // Build portal context if this is a portal location
+      const portalContext = currentLoc?.portalData
+        ? {
+            theme: currentLoc.portalData.theme || currentLoc.name,
+            rarity: currentLoc.rarity,
+            riskLevel: currentLoc.portalData.riskLevel,
+            currentRoom: currentLoc.portalData.currentRoomCount,
+            expectedRooms: currentLoc.portalData.expectedRoomCount,
+            stability: currentLoc.stability,
+          }
+        : undefined
+
+      const response = await fetch("/api/generate-narrative", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerStats: stats, portalContext }),
+      })
+      const duration = Math.round(performance.now() - startTime)
+
+      if (!response.ok) {
+        addDebugLog(
+          "error",
+          `API /api/generate-narrative failed: ${response.status} ${response.statusText} (${duration}ms)`
+        )
+        throw new Error("Failed to generate narrative")
+      }
+
+      const { event } = await response.json()
+      addDebugLog("ai", `Narrative generated: ${event.entity} encounter [${duration}ms]`, event)
+      return event
+    } catch (error) {
+      const duration = Math.round(performance.now() - startTime)
+      addDebugLog("error", `Failed to generate narrative after ${duration}ms: ${error}`)
+      console.error(`Error generating ${locationName} narrative:`, error)
+      // Return null to signal fallback is needed
+      return null
+    }
+  }
+
   const handleChoice = (choice: GameEvent["choices"][0]) => {
     if (!currentEvent) return
 
@@ -794,61 +846,28 @@ export function DungeonCrawler() {
     addLogEntry(outcome.message, outcome.entity, outcome.entityRarity)
 
     setTimeout(async () => {
-      if (activeLocation === "void") {
-        // Generate AI narrative for The Void
-        addDebugLog("ai", "Requesting AI narrative generation for The Void")
-        const startTime = performance.now()
-        try {
-          const response = await fetch("/api/generate-narrative", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ playerStats: newStats }),
-          })
-          const duration = Math.round(performance.now() - startTime)
+      // Generate AI narrative for all locations (void and portals)
+      const event = await generateAINarrative(newStats, newInventory, activeLocation || "void")
 
-          if (!response.ok) {
-            addDebugLog(
-              "error",
-              `API /api/generate-narrative failed: ${response.status} ${response.statusText} (${duration}ms)`
-            )
-            throw new Error("Failed to generate narrative")
-          }
-
-          const { event } = await response.json()
-          addDebugLog("ai", `Narrative generated: ${event.entity} encounter [${duration}ms]`, event)
-          setCurrentEvent(event)
-          addLogEntry(
-            event.description,
-            event.entity,
-            event.entityRarity,
-            event.choices,
-            event.entityData
-          )
-        } catch (error) {
-          const duration = Math.round(performance.now() - startTime)
-          addDebugLog("error", `Failed to generate narrative after ${duration}ms: ${error}`)
-          console.error("Error generating void narrative:", error)
-          // Fallback to static event
-          const fallbackEvent = generateEvent(newStats, newInventory)
-          setCurrentEvent(fallbackEvent)
-          addLogEntry(
-            fallbackEvent.description,
-            fallbackEvent.entity,
-            fallbackEvent.entityRarity,
-            fallbackEvent.choices,
-            fallbackEvent.entityData
-          )
-        }
-      } else {
-        // Use static generation for other locations
-        const nextEvent = generateEvent(newStats, newInventory)
-        setCurrentEvent(nextEvent)
+      if (event) {
+        setCurrentEvent(event)
         addLogEntry(
-          nextEvent.description,
-          nextEvent.entity,
-          nextEvent.entityRarity,
-          nextEvent.choices,
-          nextEvent.entityData
+          event.description,
+          event.entity,
+          event.entityRarity,
+          event.choices,
+          event.entityData
+        )
+      } else {
+        // Fallback to static event if AI fails
+        const fallbackEvent = generateEvent(newStats, newInventory)
+        setCurrentEvent(fallbackEvent)
+        addLogEntry(
+          fallbackEvent.description,
+          fallbackEvent.entity,
+          fallbackEvent.entityRarity,
+          fallbackEvent.choices,
+          fallbackEvent.entityData
         )
       }
     }, 500)
@@ -882,17 +901,31 @@ export function DungeonCrawler() {
     setLogEntries((prev) => prev.map((entry) => ({ ...entry, showTreasureChoices: false })))
 
     // Generate next event after brief delay
-    setTimeout(() => {
-      const nextEvent = generateEvent(playerStats, inventory)
-      setCurrentEvent(nextEvent)
-      addDebugLog("game", `Next event generated: ${nextEvent.entity || "random encounter"}`)
-      addLogEntry(
-        nextEvent.description,
-        nextEvent.entity,
-        nextEvent.entityRarity,
-        nextEvent.choices,
-        nextEvent.entityData
-      )
+    setTimeout(async () => {
+      const event = await generateAINarrative(playerStats, inventory, activeLocation || "void")
+
+      if (event) {
+        setCurrentEvent(event)
+        addDebugLog("game", `Next event generated: ${event.entity}`)
+        addLogEntry(
+          event.description,
+          event.entity,
+          event.entityRarity,
+          event.choices,
+          event.entityData
+        )
+      } else {
+        // Fallback to static event if AI fails
+        const fallbackEvent = generateEvent(playerStats, inventory)
+        setCurrentEvent(fallbackEvent)
+        addLogEntry(
+          fallbackEvent.description,
+          fallbackEvent.entity,
+          fallbackEvent.entityRarity,
+          fallbackEvent.choices,
+          fallbackEvent.entityData
+        )
+      }
     }, 500)
   }
 
@@ -940,16 +973,33 @@ export function DungeonCrawler() {
     setActiveLocation(locationId)
     setActiveTab(locationId)
 
-    const firstEvent = generateEvent(playerStats, inventory)
-    setCurrentEvent(firstEvent)
-    addDebugLog("game", `Event generated: ${firstEvent.entity || "random encounter"}`)
-    addLogEntry(
-      firstEvent.description,
-      firstEvent.entity,
-      firstEvent.entityRarity,
-      firstEvent.choices,
-      firstEvent.entityData
-    )
+    // Generate AI narrative for this location
+    ;(async () => {
+      const event = await generateAINarrative(playerStats, inventory, locationId)
+
+      if (event) {
+        setCurrentEvent(event)
+        addDebugLog("game", `Event generated: ${event.entity}`)
+        addLogEntry(
+          event.description,
+          event.entity,
+          event.entityRarity,
+          event.choices,
+          event.entityData
+        )
+      } else {
+        // Fallback to static event if AI fails
+        const fallbackEvent = generateEvent(playerStats, inventory)
+        setCurrentEvent(fallbackEvent)
+        addLogEntry(
+          fallbackEvent.description,
+          fallbackEvent.entity,
+          fallbackEvent.entityRarity,
+          fallbackEvent.choices,
+          fallbackEvent.entityData
+        )
+      }
+    })()
 
     setOpenLocations((prev) =>
       prev.map((loc) => {
@@ -973,30 +1023,9 @@ export function DungeonCrawler() {
     setActiveLocation("void")
     setActiveTab("void")
 
-    addDebugLog("ai", "Entering The Void - requesting initial AI narrative")
-    const startTime = performance.now()
-    try {
-      const response = await fetch("/api/generate-narrative", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playerStats }),
-      })
-      const duration = Math.round(performance.now() - startTime)
+    const event = await generateAINarrative(playerStats, inventory, "void")
 
-      if (!response.ok) {
-        addDebugLog(
-          "error",
-          `API /api/generate-narrative failed: ${response.status} ${response.statusText} (${duration}ms)`
-        )
-        throw new Error("Failed to generate narrative")
-      }
-
-      const { event } = await response.json()
-      addDebugLog(
-        "ai",
-        `Initial Void narrative generated: ${event.entity} encounter [${duration}ms]`,
-        event
-      )
+    if (event) {
       setCurrentEvent(event)
       addLogEntry(
         event.description,
@@ -1005,14 +1034,8 @@ export function DungeonCrawler() {
         event.choices,
         event.entityData
       )
-    } catch (error) {
-      const duration = Math.round(performance.now() - startTime)
-      addDebugLog(
-        "error",
-        `Failed to generate initial Void narrative after ${duration}ms: ${error}`
-      )
-      console.error("Error generating void narrative:", error)
-      // Fallback to static event
+    } else {
+      // Fallback to static event if AI fails
       const fallbackEvent = generateEvent(playerStats, inventory)
       setCurrentEvent(fallbackEvent)
       addLogEntry(
@@ -1922,11 +1945,13 @@ export function DungeonCrawler() {
                       )}
                       {entry.treasureChoices && entry.showTreasureChoices && (
                         <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 animate-in fade-in duration-300">
-                          {entry.treasureChoices.map((treasureChoice, choiceIndex) => (
+                          {entry.treasureChoices.map((treasureChoice) => (
                             <div
-                              key={choiceIndex}
+                              key={`treasure-choice-${entry.id}-${treasureChoice.type}-${treasureChoice.description.slice(0, 20)}`}
                               className="choice-stagger p-4 bg-secondary/30 rounded border border-border/50 hover:border-accent hover:bg-accent/5 cursor-pointer transition-all duration-200 active:scale-95"
-                              style={{ animationDelay: `${choiceIndex * 100}ms` }}
+                              style={{
+                                animationDelay: `${(entry.treasureChoices?.indexOf(treasureChoice) ?? 0) * 100}ms`,
+                              }}
                               onClick={() => handleTreasureChoice(treasureChoice)}
                             >
                               <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-2">
@@ -2007,11 +2032,13 @@ export function DungeonCrawler() {
                           )}
                           {entry.treasureChoices && entry.showTreasureChoices && (
                             <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 animate-in fade-in duration-300">
-                              {entry.treasureChoices.map((treasureChoice, choiceIndex) => (
+                              {entry.treasureChoices.map((treasureChoice) => (
                                 <div
-                                  key={choiceIndex}
+                                  key={`treasure-choice-mobile-${entry.id}-${treasureChoice.type}-${treasureChoice.description.slice(0, 20)}`}
                                   className="choice-stagger p-4 bg-secondary/30 rounded border border-border/50 hover:border-accent hover:bg-accent/5 cursor-pointer transition-all duration-200 active:scale-95"
-                                  style={{ animationDelay: `${choiceIndex * 100}ms` }}
+                                  style={{
+                                    animationDelay: `${(entry.treasureChoices?.indexOf(treasureChoice) ?? 0) * 100}ms`,
+                                  }}
                                   onClick={() => handleTreasureChoice(treasureChoice)}
                                 >
                                   <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-2">

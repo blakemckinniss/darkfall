@@ -90,13 +90,16 @@ const LOCATION_HINTS = [
 
 export async function POST(request: NextRequest) {
   try {
-    const { playerStats } = await request.json()
+    const { playerStats, portalContext } = await request.json()
 
     if (!playerStats) {
       return NextResponse.json({ error: "Player stats required" }, { status: 400 })
     }
 
-    console.log("[narrative] Generating void event for player:", playerStats)
+    const locationType = portalContext?.theme || "The Void"
+    console.log(
+      `[narrative] Generating event for ${locationType} (player level ${playerStats.level})`
+    )
 
     // Generate unique context for this encounter
     const seed = Date.now()
@@ -108,7 +111,13 @@ export async function POST(request: NextRequest) {
       LOCATION_HINTS[Math.floor(Math.random() * LOCATION_HINTS.length)] ?? LOCATION_HINTS[0]
     const temperature = 0.7 + Math.random() * 0.2 // Vary between 0.7-0.9
 
-    const systemPrompt = `You are an entity-driven encounter generator for "The Void" dungeon crawler.
+    const locationContext = portalContext
+      ? `You are generating an encounter for "${portalContext.theme}" (${portalContext.rarity} portal, risk level: ${portalContext.riskLevel}/10).
+Encounters should match the portal's theme and difficulty.`
+      : `You are generating an encounter for "The Void" - a mysterious, unstable dimension.`
+
+    const systemPrompt = `You are an entity-driven encounter generator for a dungeon crawler.
+${locationContext}
 Generate encounters that prioritize mechanical information over narrative prose.
 Respond ONLY with valid JSON matching this exact structure (no markdown, no extra text):
 {
@@ -218,12 +227,19 @@ TREASURE CHOICE BALANCE RULES:
 - Keep descriptions concise (under 60 characters)
 
 CURRENT ENCOUNTER CONTEXT (seed: ${seed}):
-- Atmosphere: ${atmosphere}
+${
+  portalContext
+    ? `- Portal: ${portalContext.theme} (${portalContext.rarity})
+- Risk Level: ${portalContext.riskLevel}/10
+- Room: ${portalContext.currentRoom}/${portalContext.expectedRooms}
+- Stability: ${portalContext.stability}%`
+    : `- Atmosphere: ${atmosphere}
 - Theme preference: ${theme}
-- Location type: ${location}
+- Location type: ${location}`
+}
 - Player state: Health ${playerStats.health}/${playerStats.maxHealth}, Level ${playerStats.level}, Gold ${playerStats.gold}
 
-Use this context to create unique encounters. The theme and atmosphere should subtly influence entity naming and description without overriding the entity-first, mechanical style.`
+${portalContext ? `Use the portal theme to create thematically appropriate encounters. Match entity difficulty to the portal's rarity and risk level.` : `Use this context to create unique encounters. The theme and atmosphere should subtly influence entity naming and description without overriding the entity-first, mechanical style.`}`
 
     const { text } = await generateText({
       model: groq("llama-3.3-70b-versatile"),
