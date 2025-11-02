@@ -93,3 +93,15 @@ Auto-generated log of all critical (76-100) documentation, technical debt, and n
 - ⭐95 Start dev server and visually test EntityText component with all 5 effect types in browser
 - ⭐90 Test Groq API endpoint - Send test request to /api/generate-text-effect with sample entity data
 - ⭐85 Integrate Groq text effect generation into generate-narrative route for AI-generated entities
+## 2025-11-02 23:15 - [NEXT]
+- ⭐95 Complete Phase 3 Integration (1-2 hours) - Wire artifact drop logic into treasure generation system
+- ⭐85 Implement Artifact Collection UI (30-60 mins) - Add visual artifact tracking in Developer panel
+- ⭐80 Test Artifact Drop System - Validate drop mechanics across all 6 portal themes
+
+## 2025-11-02 23:15 - [DOCS]
+- 🔴78 Document Phase 2 in ADR.md - Add architectural decision record for portal-scoped consumables
+- 🔴76 Document Phase 3 in ADR.md - Add portal-exclusive artifacts architecture and drop logic
+
+## 2025-11-02 23:15 - [DEBT]
+- 🟠65 Manual Testing Required for Phase 2 - Portal-scoped consumables verified via code but not gameplay tested
+

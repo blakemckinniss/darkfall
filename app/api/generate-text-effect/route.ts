@@ -125,7 +125,7 @@ Generate an appropriate text effect that enhances the entity's theme while respe
 
     // Generate with Groq using structured output
     const result = await generateObject({
-      model: groq("llama-3.3-70b-versatile"),
+      model: groq("openai/gpt-oss-20b"),
       schema: textEffectSchema,
       prompt,
       temperature: 0.75, // Creative but constrained
