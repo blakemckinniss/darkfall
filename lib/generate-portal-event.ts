@@ -213,7 +213,7 @@ export function generateProceduralEvent(
         ],
       }
 
-    case "shrine":
+    case "shrine": {
       const offeringCost = PROCEDURAL_FORMULAS.shrine.offeringCost(rarity, "gold")
       return {
         eventType: "shrine",
@@ -242,6 +242,7 @@ export function generateProceduralEvent(
           },
         ],
       }
+    }
 
     case "encounter":
     default:
