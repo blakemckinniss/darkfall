@@ -26,10 +26,10 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 DEST_FILE="$LOGS_DIR/${TIMESTAMP}_${SESSION_ID}.jsonl"
 cp "$TRANSCRIPT_PATH" "$DEST_FILE"
 
-# Compress transcript using token-optimized format
+# Compress transcript using preservation-focused format (v3)
 # Use PROJECT_DIR to find hooks directory (dirname $0 doesn't work in hook context)
 HOOK_DIR="$PROJECT_DIR/.claude/hooks"
-COMPRESS_SCRIPT="$HOOK_DIR/compress-session-v2.py"
+COMPRESS_SCRIPT="$HOOK_DIR/compress-session-v3.py"
 
 # Token-optimized format (Claude-only, maximum efficiency)
 # Uses fixed filename: last_conversation.txt (auto-cleanup of old files)
@@ -44,10 +44,10 @@ fi
 echo "✓ Session transcript saved to .claude/logs/${TIMESTAMP}_${SESSION_ID}.jsonl"
 
 if [ $COMPRESS_SUCCESS -eq 0 ]; then
-    echo "✓ Token-optimized compression:"
+    echo "✓ Preservation compression (v3):"
     echo "$COMPRESS_OUTPUT" | sed 's/^/  /'
 else
-    echo "⚠ Compression skipped (compress-session-v2.py not found or not executable)"
+    echo "⚠ Compression skipped (compress-session-v3.py not found or not executable)"
 fi
 
 exit 0

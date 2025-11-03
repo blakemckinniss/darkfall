@@ -105,3 +105,21 @@ Auto-generated log of all critical (76-100) documentation, technical debt, and n
 ## 2025-11-02 23:15 - [DEBT]
 - 🟠65 Manual Testing Required for Phase 2 - Portal-scoped consumables verified via code but not gameplay tested
 
+## 2025-11-02 19:05 - [DOCS]
+- 🔴80 Update docs/ADR.md - Document Phase 0 "Procedural Skeleton + AI Flesh" architecture decision, event generation pipeline redesign, performance targets (<400ms), and fallback strategy
+
+## 2025-11-02 19:05 - [NEXT]
+- ⭐90 Test Phase 0 Integration - Start dev server and test portal event generation with real Groq API calls
+- ⭐85 Performance Validation - Generate 10+ events and measure actual response times vs <400ms target
+
+## 2025-11-02 19:50 - [DOCS]
+- 🔴80 Update docs/ADR.md - Document Phase 0 test results, actual performance (754ms avg), 49.5% improvement over old system, and revised optimization plan for Phase 2
+
+## 2025-11-02 19:50 - [DEBT]
+- 🔴76 Performance Target Missed - 754ms average exceeds <400ms target by 354ms; requires Phase 2 caching and prompt optimization to achieve target
+
+## 2025-11-02 19:50 - [NEXT]
+- ⭐95 Optimize AI Prompts - Reduce token count in /api/generate-flavor to target <200 tokens per response for faster generation
+- ⭐90 Implement Phase 2 Entity Cache - Cache procedural entities to eliminate Groq calls for repeated entities (target: 30% cache hit rate)
+- ⭐85 Add Token Counting Metrics - Monitor actual AI response sizes to validate optimization efforts
+

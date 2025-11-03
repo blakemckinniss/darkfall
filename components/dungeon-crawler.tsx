@@ -9,7 +9,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AnimatedNumber } from "@/components/animated-number"
 import { Input } from "@/components/ui/input"
 import {
-  generateEvent,
   type GameEvent,
   type PlayerStats,
   type InventoryItem,
@@ -898,7 +897,7 @@ export function DungeonCrawler() {
     return event
   }
 
-  // Helper to generate AI narrative for locations
+  // Helper to generate AI narrative for locations - PHASE 0 INTEGRATION
   const generateAINarrative = async (
     stats: PlayerStats,
     _inv: InventoryItem[],
@@ -907,39 +906,31 @@ export function DungeonCrawler() {
     const currentLoc = openLocations.find((loc) => loc.id === locationId)
     const locationName = locationId === "void" ? "The Void" : currentLoc?.name || "Unknown"
 
-    addDebugLog("ai", `Requesting AI narrative generation for ${locationName}`)
+    addDebugLog("ai", `[Phase 0] Requesting AI event generation for ${locationName}`)
     const startTime = performance.now()
 
     try {
-      // Build portal context if this is a portal location
+      // Build portal context using Phase 0 format
       const portalContext = currentLoc?.portalData
         ? {
-            theme: currentLoc.portalData.theme || currentLoc.name,
+            portalTheme: currentLoc.portalData.theme || currentLoc.name,
             rarity: currentLoc.rarity,
             riskLevel: currentLoc.portalData.riskLevel,
             currentRoom: currentLoc.portalData.currentRoomCount,
             expectedRooms: currentLoc.portalData.expectedRoomCount,
             stability: currentLoc.stability,
+            playerLevel: stats.level,
           }
         : undefined
 
-      const response = await fetch("/api/generate-narrative", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playerStats: stats, portalContext }),
-      })
+      // Import Phase 0 system dynamically to avoid circular deps
+      const { generatePortalEvent } = await import("@/lib/generate-portal-event")
+
+      // Generate event using Phase 0 pipeline
+      const event = await generatePortalEvent(stats, portalContext)
+
       const duration = Math.round(performance.now() - startTime)
-
-      if (!response.ok) {
-        addDebugLog(
-          "error",
-          `API /api/generate-narrative failed: ${response.status} ${response.statusText} (${duration}ms)`
-        )
-        throw new Error("Failed to generate narrative")
-      }
-
-      const { event } = await response.json()
-      addDebugLog("ai", `Narrative generated: ${event.entity} encounter [${duration}ms]`, event)
+      addDebugLog("ai", `[Phase 0] Event generated: ${event.entity} [${duration}ms]`, event)
 
       // Inject artifact drops for treasure events
       const eventWithArtifact = injectArtifactDrop(event, locationId)
@@ -947,10 +938,31 @@ export function DungeonCrawler() {
       return eventWithArtifact
     } catch (error) {
       const duration = Math.round(performance.now() - startTime)
-      addDebugLog("error", `Failed to generate narrative after ${duration}ms: ${error}`)
-      console.error(`Error generating ${locationName} narrative:`, error)
-      // Throw error - no fallbacks (design choice for development)
-      throw new Error(`AI narrative generation failed: ${error}`)
+      addDebugLog("error", `[Phase 0] Failed to generate event after ${duration}ms: ${error}`)
+      console.error(`Error generating ${locationName} event:`, error)
+
+      // Phase 0 procedural fallback
+      try {
+        const { generateProceduralEvent } = await import("@/lib/generate-portal-event")
+
+        const portalContext = currentLoc?.portalData
+          ? {
+              portalTheme: currentLoc.portalData.theme || currentLoc.name,
+              rarity: currentLoc.rarity,
+              currentRoom: currentLoc.portalData.currentRoomCount,
+              stability: currentLoc.stability,
+              playerLevel: stats.level,
+            }
+          : undefined
+
+        const fallbackEvent = generateProceduralEvent(stats, portalContext)
+        addDebugLog("ai", `[Phase 0] Using procedural fallback for ${locationName}`)
+
+        return injectArtifactDrop(fallbackEvent, locationId)
+      } catch (fallbackError) {
+        addDebugLog("error", `[Phase 0] Procedural fallback also failed: ${fallbackError}`)
+        throw new Error(`Event generation completely failed: ${error}`)
+      }
     }
   }
 
@@ -1352,8 +1364,11 @@ export function DungeonCrawler() {
           event.entityData
         )
       } else {
-        // Fallback to static event if AI fails
-        const fallbackEvent = generateEvent(playerStats, inventory)
+        // This case shouldn't happen with Phase 0 - generateAINarrative has its own fallback
+        // But keep this as ultimate safety net
+        addDebugLog("error", "[Phase 0] Event was null - this shouldn't happen")
+        const { generateProceduralEvent } = await import("@/lib/generate-portal-event")
+        const fallbackEvent = generateProceduralEvent(playerStats)
         setCurrentEvent(fallbackEvent)
         addLogEntry(
           fallbackEvent.description,
@@ -1402,8 +1417,10 @@ export function DungeonCrawler() {
         event.entityData
       )
     } else {
-      // Fallback to static event if AI fails
-      const fallbackEvent = generateEvent(playerStats, inventory)
+      // This case shouldn't happen with Phase 0 - generateAINarrative has its own fallback
+      addDebugLog("error", "[Phase 0] Void event was null - this shouldn't happen")
+      const { generateProceduralEvent } = await import("@/lib/generate-portal-event")
+      const fallbackEvent = generateProceduralEvent(playerStats)
       setCurrentEvent(fallbackEvent)
       addLogEntry(
         fallbackEvent.description,

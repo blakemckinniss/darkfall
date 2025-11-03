@@ -1,861 +1,611 @@
-# Portal Traversal Enhancement TODO
+# Game Master Protocol - Portal System Refactor
 
-**Vision:** Incorporate Path of Adventure (POA) mechanics to enhance portal traversal with progress tracking, strategic choices, portal-scoped buffs, and exclusive artifacts.
+## User preface (lead to vision below):
+ "we need to dedicate a lot of time and resources into working with the prompting to Groq and it's returns; lets focus on the portal
+  location system for now since thats the main gameplay loop. Basically what I want is to do a careful back and fourth with Groq where
+  the game produces templates, entity shells, and possible variables and gameplay mechanics, and Groq returns all the creativity of the
+  game. I'd like to have to schema and templates that are fed to be populated, with Groq being the "brains" that orchestrates; kind of
+  like a generative AI that returns generative UI based on the conventions and constrains of the game. To make things seamless I'd
+  like to try to get only what we need to from Groq to reduce response load for faster responses, meaning we "seed" Groq what it needs
+  from randomness of procedural generation or numbers, while it produces the flavor and intelligence. This is hard to explain, but Groq
+  needs to be like game master of the game; like a dungeon master, as in dungeon in dragons there is game structure that still needs
+  to be adhered to so it stays grounded and cant go out of bounds. The game needs to be fast and fluid, but the AI can't be so shallow
+  as just a picker of things; it should generate new unique and interesting concepts through entity generation. We already have a lot
+  of these puzzle pieces to feed Groq, but the system is not as expected yet. Please consult with Zen MCP and put together a plan of
+  action. Refactor @docs/TODO.md with the new vision of portal locations and interactions with Groq. Let me know if you have any
+  questions. Since this is so important this is priority number 1, all TODO needs to be refactored to accomodate this vision. NO BACKWARDS
+  COMPATIBILITY OR MIGRATIONS!!! No feature flags; this is a full-blown refactor, salvaging what we have as parts for the new vision.
+  When writing tasks be aware that I want a silky smooth flow of frontend UI that flows like water, where the DOM elements mount and
+  dismount fluidly for reactive room play and transitions. We need to couple element groups together, for example when the player buys
+  an item the shop needs to disappear and be replaced with the buy message, or when a player attacks the enemy the enemy battle log
+  should show their new status and stats as their prior status and stats are removed, as choices are made other choice logs are removed
+  from the room view, and have any data transfer over to the next room if needed. We need careful state mangement, with UI frontend
+  groups linked, and Groq supplying the proper data to populate everything. There is a lot to it so we need to stay organized and smart
+  about this. To get this done, go scorched earth on anythign prior old code if it gets in the way, but use stuff you can. Don't try
+  to fit a square peg into a round hole: replace what you need to replace. If we can get Groq to produce new rearrangements of the UI
+  that'd be great as well. The goal is to have a "WTF is the AI going to do next?!" or "WTF is the next room going to bring?!" kind of
+  progression, with the dopamine rush of new Groq generated item intenties for equipement, items, consumables, etc. The point is AI can
+  literally create anything, it has limitless creativity and I'm trying to harness it to create a modern single player MUD browser
+  experience with limitless possibilties."
 
-**Total Estimated Time:** 8.5 hours (Phase 1: 2 hours actual)
-**Expert Validation:** ✅ Complete (Opus 4)
-**Confidence Level:** 95%
-**Status:** ✅ Phase 1 & 2 COMPLETE | Phase 3 Schema Ready
-**Last Updated:** 2025-11-02 19:45 UTC
-**Session:** 2025-11-02 - Phase 2 Implementation Complete
-**Commits:**
-- fe88570 - "feat: Implement portal traversal enhancements (Phase 1A & 1B)"
-- 85fdb4e - "feat: Complete Phase 1B integration - AI treasure choices for portal traversal"
-- 3d6032e - "feat: Add Portal Tools developer tab for easy map item generation"
-- 14808b5 - "feat: Complete Phase 2 portal-scoped consumables + Phase 3 schema extensions"
-- 3d7e8bd - "fix: Add obtainedArtifacts to beforeunload useEffect dependency array"
+**Vision:** Transform portal gameplay into a fluid, reactive AI-driven experience where Groq acts as the creative dungeon master while the game provides mechanical structure and balance.
 
----
+**Architecture:** "Procedural Skeleton + AI Flesh"
+- **Game Engine:** Mechanics, stats, formulas, balance, templates
+- **Groq:** Names, descriptions, flavor text, narrative creativity
+- **UI System:** Reactive DOM elements that mount/dismount fluidly
 
-## 📖 Start Here (For Fresh Sessions)
-
-### 🎯 Current Status: Phase 1 & 2 COMPLETE ✅
-
-**What's Been Done:**
-- ✅ Phase 1A: Portal progress tracking UI (Room X/Y counter + progress bar)
-- ✅ Phase 1B: AI treasure choices fully integrated with portal traversal
-- ✅ Portal Tools developer tab for easy testing
-- ✅ **Phase 1 TESTED via Playwright MCP**: Portal progress updates, AI treasure choices, themed encounters
-- ✅ **Phase 2 COMPLETE**: Portal-scoped consumables fully functional
-  - Portal buffs apply to player stats (attack/defense/health)
-  - 5 portal-scoped consumables created and working
-  - Buff UI displays below progress bar
-  - Buffs persist across page reload
-  - Buffs clear automatically on portal collapse
-- ✅ **Phase 3 Schema Ready**: portalExclusive field + obtainedArtifacts tracking
-
-**Testing Results (2025-11-02):**
-- ✅ Portal progress display updates correctly during traversal
-- ✅ AI-generated encounters with treasure choices work perfectly in portals
-- ✅ Portal theme influences AI encounter generation (Magma Golem, Magmadrake in Dragon's Lair)
-- ✅ Treasure choices are themed (Magma Shield, Volcanic spring)
-- ✅ Treasure selection works correctly (item added to inventory)
-- ✅ Room counter updates (0/12 → 1/12)
-- ✅ Stability decay works (100% → 86%)
-
-**How to Test (Use Portal Tools Tab):**
-1. Open game → Developer tab → Portal Tools (🗺️ icon)
-2. Click any map button to add it to inventory (try "Mystical Map" for legendary difficulty)
-3. Switch to Portal tab → Click map → "Open Map"
-4. Enter portal → Verify AI encounters with themed content and treasure choices
-5. Play through multiple rooms → Check progress bar updates
-6. Test different portal rarities (common → legendary)
+**Performance Target:** 3-5x faster event generation (800-1200ms → 200-400ms)
+**Confidence Level:** 92% (Zen MCP Opus 4 validation complete)
+**Status:** 🔴 REFACTOR IN PROGRESS - Scorched Earth Approach
+**Last Updated:** 2025-11-02 (Session 3 - Architecture Planning)
 
 ---
 
-### Essential Context
+## 📖 Start Here: The New Vision
 
-**What are Portals?**
-- Portals are temporary dungeon locations created by consuming "Map Items" from inventory
-- Each portal has 3-15 rooms (based on rarity) and a stability percentage (100% → 0%)
-- Stability decreases with each room completed (percentage-based decay)
-- Portals collapse when stability hits 0% OR when all rooms are explored
-- Players navigate room-by-room through AI-generated encounters (combat, treasure, mystery, hazard, rest)
-- **NEW:** All portal encounters now use `/api/generate-narrative` with portal context (theme, rarity, risk level)
+### 🎯 What We're Building
 
-**What is Path of Adventure (POA)?**
-- POA is a web-based text RPG used as inspiration for portal enhancement mechanics
-- Source: `docs/inspiration.md` (HTML dump of POA gameplay)
-- Key mechanics analyzed: progress tracking, weapon conditions, artifacts, cursed items, choice groups, temporary effects
-- 4 of these mechanics were selected as best fit for portal traversal enhancement
+**"WTF is the AI going to do next?!" Gameplay**
 
-**Current Portal System Architecture:**
-- Schemas: `lib/entities/schemas.ts` (MapItem, Location, portalMetadata, portalData) ✅ EXISTS
-- Canonical maps: `lib/entities/canonical/maps.ts` (6 themed maps with metadata) ✅ EXISTS
-- AI generation: `app/api/generate-narrative/route.ts` (accepts portalContext parameter) ✅ UPDATED
-- Game logic: `components/dungeon-crawler.tsx` (generateAINarrative helper, handleChoice, handleTreasureChoice) ✅ UPDATED
-- Developer tools: Portal Tools tab in developer panel ✅ NEW
-- State: Tracked in openLocations array, persisted to localStorage
+A modern single-player MUD browser experience where:
+- **Every room is unique** - AI generates fresh encounters, not template variations
+- **Silky smooth UI flow** - DOM elements mount/dismount like water flowing
+- **Reactive state management** - Shop disappears when buying, battle log updates live, choices vanish when selected
+- **Dopamine-driven progression** - AI creates limitless unique items, enemies, encounters
+- **Groq as dungeon master** - AI has creative freedom within game constraints
 
-### Required Reading (Before Starting)
+### 🏗️ Core Architecture: Game Master Protocol
 
-**📚 ADR-013** - `docs/ADR.md` (lines 528-703)
-- Complete architectural decision for portal traversal enhancement
-- Explains why these 4 mechanics were chosen (validated against Hades, Slay the Spire, Dead Cells)
-- Documents critical fixes (stability decay edge case, room count variance)
-- Trade-off analysis and consequences
-- Expert validation notes
+**The Division of Labor:**
 
-**📋 NOTES.md** - `docs/NOTES.md`
-- Contains critical items (🔴/⭐ 76-100) that may need attention
-- Portal traversal next steps logged at bottom
-- Check before starting to ensure no blocking issues
+| Component | Responsibility | Example |
+|-----------|---------------|---------|
+| **Game Engine** | Mechanics, stats, balance | `health = BASE_HP[rarity] * (1 + difficulty * 0.1)` |
+| **Groq AI** | Creativity, flavor, narrative | `"Obsidian Warden rises from molten pools"` |
+| **Template Builder** | Combines procedural + AI | `buildCombatEvent(seed, flavor) → GameEvent` |
+| **UI System** | Reactive components | Shop → Purchase → Message (fluid transitions) |
 
-**🎨 Inspiration Source** - `docs/inspiration.md`
-- HTML dump of Path of Adventure gameplay
-- Shows weapon conditions ("brand new"), artifact markers (crown icon), progress tracking (2/50)
-- Reference for UI/UX patterns when implementing choices and progress indicators
+**Why This Works:**
+- **6x smaller AI responses** (1200 tokens → 200 tokens)
+- **3-5x faster generation** (800-1200ms → 200-400ms)
+- **Better game balance** (procedural formulas ensure fairness)
+- **More AI creativity** (Groq focuses on storytelling, not mechanics)
+- **Easier tuning** (change formulas without re-prompting AI)
 
 ---
 
-## 🎯 The 4 Chosen Mechanics (POA-Inspired)
+## 🔧 What We're Salvaging from Current Code
 
-From POA analysis (10 mechanics evaluated), these 4 were selected:
+### ✅ Keep and Enhance
 
-1. **Portal Progress Tracking** ✅ COMPLETE - "Room 3/8" counter with visual progress bar (from POA's "2/50" path progress)
-2. **Multi-Choice Treasure Events** ✅ COMPLETE (needs testing) - Select 1 of 2-3 treasure options (from POA's "Take Pitchfork OR Straw Shield")
-3. **Portal-Scoped Consumables** 🔴 NOT STARTED - Temporary buffs active only in current portal (from POA's "end of day" effects)
-4. **Portal-Exclusive Artifacts** 🔴 NOT STARTED - Rare items from specific portal themes (from POA's crown-marked artifacts)
+1. **Portal Core Systems** (80% salvageable)
+   - `lib/entities/schemas.ts` - MapItem, Location, portalMetadata (KEEP)
+   - `lib/entities/canonical/maps.ts` - 6 themed maps (KEEP)
+   - Portal session tracking, stability decay, room progression (KEEP)
+   - localStorage persistence (KEEP)
+   - Developer tools tab (ENHANCE)
 
-**Why These 4?**
-- Each directly enhances portal **traversal** (not general game systems)
-- Fits ephemeral/high-stakes nature of temporary portals
-- Validated against roguelike best practices (see ADR-013)
-- Integrates cleanly with existing portal architecture
-- Incremental implementation (each phase delivers standalone value)
+2. **Entity Registry** (100% salvageable)
+   - `lib/entities/index.ts` - ENTITIES registry (KEEP)
+   - TTL system, AI entity storage (KEEP)
+   - Entity schemas and interfaces (KEEP)
 
-**Why NOT Other POA Mechanics?**
-- Weapon condition system: Too punishing for portal-only degradation
-- Cursed items: Needs careful balancing (lower priority)
-- Enchanted weapons: Already covered by existing stat system
-- Limited slots: Already implemented via inventory
+3. **UI Components** (50% salvageable)
+   - Portal progress bar (KEEP - already smooth)
+   - Rarity color system (KEEP)
+   - Developer panel structure (KEEP)
+   - Inventory modal (REFACTOR for reactive state)
 
----
+4. **State Management** (60% salvageable)
+   - `lib/game-state.ts` - GameState interface (ENHANCE)
+   - localStorage integration (KEEP)
+   - Portal sessions (ENHANCE for reactive UI)
 
-## 🎯 Implementation Status
+### 🔥 Scorched Earth (Replace Completely)
 
-### ✅ Phase 1A: Portal Progress Tracking - COMPLETE
+1. **AI Generation System** (REPLACE)
+   - ❌ `/api/generate-narrative` - monolithic, bloated (1200 tokens)
+   - ✅ `/api/generate-flavor` - lightweight, focused (200 tokens)
 
-**Status:** ✅ Implemented in commit fe88570
-**Files Modified:** `components/dungeon-crawler.tsx:1743-1772` (approx, may have shifted with new code)
+2. **Event Construction** (REPLACE)
+   - ❌ `generateEvent()` in game-engine.ts - static templates
+   - ✅ Template builder system with procedural formulas
 
-**Completed:**
-- [x] Portal progress display component (`Room X/Y` counter)
-- [x] Visual progress bar with cyan theme
-- [x] Bonus room indicator (`X/Y (bonus)`)
-- [x] Positioned below stability bar
-- [x] Updates on each room completion
+3. **UI Event Rendering** (REPLACE)
+   - ❌ Current event log - append-only, no transitions
+   - ✅ Reactive component groups - mount/dismount fluidly
 
-**Testing Required (NEXT SESSION):**
-- [ ] **CRITICAL:** Test progress display updates correctly during portal traversal
-- [ ] Verify progress bar animation is smooth
-- [ ] Test edge case: bonus rooms exceeding expected count
-- [ ] Verify UI renders correctly on different screen sizes
-
----
-
-### ✅ Phase 1B: Multi-Choice Treasure Events - COMPLETE (Integration Done)
-
-**Status:** ✅ FULLY INTEGRATED in commits fe88570 + 85fdb4e
-**Files Modified:**
-- `lib/game-engine.ts` - TreasureChoice interface
-- `app/api/generate-narrative/route.ts` - AI prompt + portal context + transformation
-- `components/dungeon-crawler.tsx` - generateAINarrative helper, UI, handlers
-
-**What Changed in Session 2025-11-02:**
-- ✅ API route now accepts `portalContext` parameter (theme, rarity, riskLevel, currentRoom, expectedRooms, stability)
-- ✅ AI system prompt adapts to portal theme (Dragon's Lair → dragon encounters, Crystal Caverns → crystal encounters)
-- ✅ Created `generateAINarrative()` helper function for centralized AI generation
-- ✅ Replaced ALL `generateEvent` calls with AI generation:
-  * handleChoice (after player choice)
-  * handleTreasureChoice (after treasure selection)
-  * handleEnterLocation (initial portal entry)
-  * handleEnterVoid (void entry)
-- ✅ Portal metadata passed to AI for contextual encounters
-- ✅ Fallback to static events if AI fails
-- ✅ TypeScript strict mode compliance maintained
-
-**Completed Implementation:**
-- [x] Schema Extension - TreasureChoice interface added to game-engine.ts
-- [x] AI Prompt Enhancement - 30% treasure event rate with balance rules
-- [x] Treasure choice transformation logic (AI JSON → game format)
-- [x] UI Component - Grid-based treasure choice cards
-- [x] handleTreasureChoice function (item/gold/health rewards)
-- [x] TypeScript fixes for global animation functions
-- [x] Portal context integration (theme-based encounters)
-- [x] All event generation points use AI (void + portals)
-
-**Testing Required (NEXT SESSION - HIGH PRIORITY):**
-- [ ] **CRITICAL:** Test AI-generated treasure choices appear in portal runs
-- [ ] **CRITICAL:** Verify portal theme influences encounters (dragons in Dragon's Lair, crystals in Crystal Caverns)
-- [ ] Validate treasure choice balance (equal value across options)
-- [ ] Test across all 6 portal types (Catacombs, Library, Caverns, Lair, Mine, Temple)
-- [ ] Test across all rarities (common → legendary)
-- [ ] Verify AI fallback works if API fails
-- [ ] Tune AI prompt based on gameplay feedback
-
-**Known Issues (Session 2025-11-02):**
-- ⚠️ NOT MANUALLY TESTED - integration complete but gameplay not verified
-- ⚠️ AI treasure balance unvalidated in real gameplay
-- ⚠️ Portal theme influence not confirmed (code complete, needs testing)
+4. **Choice Handling** (REPLACE)
+   - ❌ `handleChoice()` - monolithic, no UI coupling
+   - ✅ Reactive choice system - choices disappear, logs update
 
 ---
 
-### 🛠️ Developer Tools: Portal Tools Tab - COMPLETE
+## 🎯 Implementation Roadmap (36 Hours Total)
 
-**Status:** ✅ Implemented in commit 3d6032e
-**Files Modified:** `components/dungeon-crawler.tsx`
+### Phase 0: Proof of Concept (4 hours) 🔴 CURRENT PHASE
 
-**Features:**
-- ✅ New "Portal Tools" tab in developer panel (🗺️ icon)
-- ✅ Grid display of all 6 canonical maps
-- ✅ One-click map generation (unique IDs, full portal metadata)
-- ✅ Rich map cards showing: name, location, rarity, rooms, risk level, theme
-- ✅ Testing guide with step-by-step instructions
-- ✅ Debug log integration
-
-**Available Maps:**
-1. Crumbling Map → Forgotten Catacombs (common, 4 rooms, low risk)
-2. Torn Map → Abandoned Mine (common, 3 rooms, low risk)
-3. Weathered Map → Ancient Library (uncommon, 6 rooms, medium risk)
-4. Ancient Map → Sunken Temple (uncommon, 5 rooms, medium risk)
-5. Enchanted Map → Crystal Caverns (rare, 8 rooms, high risk)
-6. Mystical Map → Dragon's Lair (legendary, 13 rooms, extreme risk)
-
-**Usage:**
-1. Developer tab → Portal Tools (4th tab)
-2. Click any map button
-3. Map added to inventory with unique ID
-4. Switch to Portal tab → Open map → Test
-
----
-
-### 🔧 Critical Fixes Completed
-
-**Status:** ✅ Complete in commit fe88570
-
-**Fix 1: Stability Decay Edge Case** - FIXED
-- File: `components/dungeon-crawler.tsx` (handleChoice function)
-- Added `Math.max(1, ...)` to prevent infinite low-stability loops
-- [x] Ensures minimum 1-point decay per room
-
-**Fix 2: Room Count Variance** - Already Fixed
-- Investigation showed this was already implemented correctly
-- Room count variance calculated once and stored in `portalData`
-
-**Fix 3: TypeScript Strict Compliance** - FIXED
-- Optional chaining for treasure choices (`entry.treasureChoices?.indexOf()`)
-- Null checks for activeLocation (`activeLocation || "void"`)
-- Type safety for map item generation (portalMetadata null check)
-
-**Fix 4: Linting Errors** - FIXED
-- Removed array index keys from treasure choice rendering
-- Used composite keys: `treasure-choice-${entry.id}-${type}-${description}`
-
----
-
-## ✅ Phase 1 Testing: COMPLETE (2025-11-02)
-
-### Testing Summary (Automated via Playwright MCP)
-
-**Goal:** Validate Phase 1A & 1B implementation in actual gameplay - ✅ COMPLETE
-
-**Testing Method:** Automated browser testing using Playwright MCP
-**Time Spent:** ~1 hour
-**Result:** All core features working correctly
-
-**Testing Checklist:**
-
-#### Phase 1A Testing (Portal Progress Tracking) - ✅ COMPLETE
-- [x] Open a portal (use Portal Tools tab) - ✅ Worked perfectly
-- [x] Enter portal and verify progress bar appears - ✅ Displayed correctly
-- [x] Complete a room and verify counter updates (e.g., Room 0/12 → Room 1/12) - ✅ Updated correctly
-- [x] Verify progress bar fills proportionally - ✅ Visible progress bar with cyan theme
-- [x] Stability decay verified (100% → 86%) - ✅ Working correctly
-- [ ] Test bonus rooms (play until rooms exceed expected count) - Deferred to future session
-- [ ] Test on different screen sizes (desktop, mobile view) - Deferred to future session
-- [ ] Verify UI doesn't break with long location names - Deferred to future session
-
-#### Phase 1B Testing (AI Treasure Choices) - ✅ COMPLETE
-- [x] Enter a portal and play through multiple rooms - ✅ Tested Dragon's Lair
-- [x] **CRITICAL:** Verify AI-generated encounters appear - ✅ Magma Golem, Magmadrake, Dragon Guardian
-- [x] **CRITICAL:** Verify treasure choice events appear - ✅ Treasure choices displayed in Room 1
-- [x] Click each treasure choice type and verify rewards work - ✅ Magma Shield added to inventory
-- [x] Verify treasure choices disappear after selection - ✅ Choices removed after selection
-- [x] Treasure choices are themed - ✅ Magma Shield, Volcanic spring (Dragon's Lair theme)
-- [ ] Test treasure choice UI on mobile view - Deferred to future session
-
-#### Portal Theme Testing
-- [ ] Test Dragon's Lair (legendary) - expect dragon-themed encounters
-- [ ] Test Crystal Caverns (rare) - expect crystal/elemental encounters
-- [ ] Test Ancient Library (uncommon) - expect knowledge/guardian encounters
-- [ ] Test Forgotten Catacombs (common) - expect undead encounters
-- [ ] Test Abandoned Mine (common) - expect mining/creature encounters
-- [ ] Test Sunken Temple (uncommon) - expect water/ancient encounters
-
-#### Balance Testing
-- [ ] Play through 3+ portals and note treasure choices
-- [ ] Verify choices feel roughly equal value
-- [ ] Check if legendary portals have better treasure than common
-- [ ] Note any obviously overpowered or underpowered choices
-- [ ] Document feedback for AI prompt tuning
-
-#### Fallback Testing
-- [ ] Disable network and verify static event fallback works
-- [ ] Re-enable network and verify AI generation resumes
-
-#### Portal Theme Testing - ✅ PARTIAL (Dragon's Lair only)
-- [x] Test Dragon's Lair (legendary) - ✅ Dragon-themed encounters verified (Magma Golem, Magmadrake, Dragon Guardian)
-- [ ] Test Crystal Caverns (rare) - Deferred to future session
-- [ ] Test Ancient Library (uncommon) - Deferred to future session
-- [ ] Test Forgotten Catacombs (common) - Deferred to future session
-- [ ] Test Abandoned Mine (common) - Deferred to future session
-- [ ] Test Sunken Temple (uncommon) - Deferred to future session
-
-**Testing Complete:**
-- [x] Document test results in TODO.md - ✅ DONE
-- [x] Update TODO.md with "TESTED" status - ✅ DONE
-- [x] Screenshots captured (.playwright-mcp/dragon-lair-*.png)
-
----
-
-## 🔄 READY FOR IMPLEMENTATION: Phases 2 & 3
-
-**Status:** ✅ Architecture Analysis Complete (Zen MCP Opus 4 - 92% Confidence)
-**Decision:** Proceed with Phase 2+3 implementation following validated architectural guidance
-**Updated:** 2025-11-02 17:30 UTC
-**Commits:**
-- a84f64b - "docs: Update TODO.md with Phase 1 testing results and Phase 2 schema extensions"
-- 0c43549 - "fix: Add scope field to existing consumables for TypeScript compliance"
-
-**Why Proceed Now:**
-- Phase 1 complete, tested, and stable foundation
-- Schema extensions complete and validated (scope, portalRestriction, PortalBuff, PortalSession)
-- Comprehensive architectural analysis confirms no major refactoring needed
-- Clear implementation patterns identified with 92% confidence
-- 6-8 hour estimated implementation time (manageable)
-
-**Architectural Validation (Zen MCP Analysis):**
-- ✅ Current architecture can support Phase 2+3 without refactoring
-- ✅ Monolithic component pattern (3100 lines) acceptable for solo dev scope
-- ✅ React hooks + localStorage persistence suitable
-- ✅ Multiple portals already supported - good foundation
-- ✅ Security appropriate for localhost single-player game
-- ✅ No overengineering detected - appropriately minimal
-
-**Key Implementation Patterns (Expert-Validated):**
-1. **Portal Session State**: `portalSessions: Record<locationId, PortalSession>` (O(1) lookup)
-2. **Multiple Portal Edge Case**: "Next Entered Portal" pattern with pending buffs queue
-3. **Buff Persistence**: Save in localStorage for roguelike continuity
-4. **Buff Lifecycle**: Apply on portal entry, clear on portal collapse
-5. **Artifact Drops**: Integrate with handleTreasureChoice (treasure events)
-6. **UI Integration**: Buffs below progress bar, artifacts in new developer tab
-7. **Testing**: Use Playwright MCP (already established in Phase 1)
-
-### Phase 2: Portal-Scoped Consumables ✅ COMPLETE (Actual: 1.5 hours)
-
-**Status:** ✅ 100% COMPLETE - All tasks finished, functionality verified
-**Priority:** HIGH - Foundation for Phase 3, adds strategic depth
-**Dependencies:** ✅ Phase 1A & 1B TESTED | ✅ Schema Extensions Complete
-**Files Modified:** `lib/game-engine.ts`, `components/dungeon-crawler.tsx`, `lib/game-state.ts`, `lib/entities/canonical/consumables.ts`
-**Completion Date:** 2025-11-02 19:30 UTC
-**Commits:** 14808b5, 3d7e8bd
-
-**Implementation Strategy (Zen MCP Validated):**
-- Use `portalSessions: Record<locationId, PortalSession>` for O(1) buff lookup
-- Apply buffs to activeLocation when consumable used
-- Persist portal sessions in localStorage (roguelike continuity)
-- Clear buffs on portal collapse (filter by locationId)
+**Goal:** Validate core architecture with one event type (combat) to prove 200-400ms target
 
 **Tasks:**
 
-#### 1. Schema Extension ✅ COMPLETE
-- [x] Extend `consumableEffect` schema with `scope` field (commit a84f64b)
-- [x] Add optional `portalRestriction?: string` (commit a84f64b)
-- [x] Add TypeScript types (ActiveEffect.scope, PortalBuff, PortalSession) (commit a84f64b)
-- [x] Fix existing consumables to include scope: "global" (commit 0c43549)
+#### 0.1 Create Procedural Formulas Library (1.5h)
+- [ ] **File:** `lib/procedural-formulas.ts`
+- [ ] Rarity-based stat formulas (health, attack, defense)
+- [ ] Reward scaling (gold, exp by level)
+- [ ] Shop pricing formulas
+- [ ] Shrine boon/bane calculations
+- [ ] Trap risk formulas
 
-#### 2. Portal Session Tracking ✅ COMPLETE (Pre-existing)
-- [x] Add `portalSessions` state in dungeon-crawler.tsx (line 159)
-- [x] Add `portalSessions` to GameState interface (lib/game-state.ts:29)
-- [x] Load portalSessions from localStorage on mount (lines 387-397)
-- [x] Save portalSessions to localStorage (debounced, lines 423, 426)
-- [x] **Key Pattern**: Use activeLocation as key when applying buffs
-- [x] Validate portal IDs on load (remove sessions for closed portals)
-
-#### 3. Buff Lifecycle Management ✅ COMPLETE
-- [x] Update `handleUseConsumable` - Portal-scoped logic complete (lines 1246-1283, pre-existing)
-- [x] **NEW:** Apply portal buffs to player stats in totalStats useMemo (lines 604-614, commit 14808b5)
-- [x] Clear buffs on portal collapse (lines 760-766, pre-existing)
-- [x] Buff validation: Only works in portals, not void
-- [x] Multiple portals handled correctly via activeLocation key
-- [x] Persistence verified via localStorage integration
-
-#### 4. Create Portal-Scoped Consumables ✅ COMPLETE (Pre-existing)
-All 5 portal-scoped consumables exist in `lib/entities/canonical/consumables.ts`:
-
-- [x] **Portal Anchor** (rare) - 50g, scope: "portal", stability decay reduction
-- [x] **Dimensional Ward** (rare) - 45g, scope: "portal", +20 defense
-- [x] **Explorer's Blessing** (uncommon) - 30g, scope: "portal", +5 attack
-- [x] **Cavern Blessing** (epic) - 75g, scope: "portal", stability decay reduction
-- [x] **Portal Resilience** (uncommon) - 35g, scope: "portal", +15 health
-
-**Implementation:**
 ```typescript
-{
-  id: "consumable:portal_anchor",
-  entityType: "consumable",
-  name: "Portal Anchor",
-  type: "consumable",
-  value: 50,
-  rarity: "rare",
-  icon: "ra-anchor",
-  consumableEffect: {
-    type: "temporary",
-    duration: 999999, // Active until portal collapse
-    statChanges: { /* stability decay reduction - handle specially */ },
-    scope: "portal",
+export const PROCEDURAL_FORMULAS = {
+  stats: {
+    health: (rarity: Rarity, difficulty: number) => {
+      const BASE_HP = { common: 30, uncommon: 50, rare: 70, epic: 90, legendary: 120 }
+      return Math.floor(BASE_HP[rarity] * (1 + difficulty * 0.1))
+    },
+    attack: (rarity: Rarity, difficulty: number) => {
+      const BASE_ATK = { common: 8, uncommon: 12, rare: 16, epic: 22, legendary: 30 }
+      return Math.floor(BASE_ATK[rarity] * (1 + difficulty * 0.1))
+    }
   },
-  description: "Reduces portal stability decay by 15%. Active only in current portal.",
-  source: "canonical",
-  version: 1,
-  sessionOnly: false,
-  tags: ["portal", "stability", "buff"],
+  rewards: {
+    gold: (rarity: Rarity, level: number) => {
+      const BASE_GOLD = { common: 15, uncommon: 25, rare: 40, epic: 65, legendary: 100 }
+      return Math.floor(BASE_GOLD[rarity] * (1 + level * 0.05))
+    },
+    exp: (rarity: Rarity, level: number) => {
+      const BASE_EXP = { common: 20, uncommon: 35, rare: 55, epic: 80, legendary: 120 }
+      return Math.floor(BASE_EXP[rarity] * (1 + level * 0.05))
+    }
+  }
 }
 ```
 
-#### 5. UI Integration (30 mins) - BUFF DISPLAY
-- [ ] Add portal buff display **below progress bar** (components/dungeon-crawler.tsx:1822+):
-  ```typescript
-  {/* Active Portal Buffs */}
-  {portalsessions[activeLocation]?.activeBuffs.length > 0 && (
-    <div className="mt-2 space-y-1">
-      <div className="text-xs text-muted-foreground uppercase tracking-wider">
-        Active Buffs
-      </div>
-      {portalSessions[activeLocation].activeBuffs.map(buff => (
-        <div key={buff.id} className="text-xs flex items-center gap-2">
-          <span className={`${getRarityColor(buff.rarity)}`}>{buff.name}</span>
-          <span className="text-muted-foreground">
-            +{buff.statChanges.attack || buff.statChanges.defense || "effect"}
-          </span>
-        </div>
-      ))}
-    </div>
-  )}
-  ```
-- [ ] Update consumable modal to show scope badge
-- [ ] Add visual feedback (sparkle animation) when buff applies
-- [ ] Test UI on different screen sizes
+#### 0.2 Create Lightweight AI Flavor Endpoint (1.5h)
+- [ ] **File:** `app/api/generate-flavor/route.ts`
+- [ ] Minimal prompt (500 tokens vs 2000)
+- [ ] Returns ONLY creative payload (entity name, description, choice flavor, outcomes)
+- [ ] 3-tier fallback: AI → Cache → Procedural
+- [ ] Response validation and error handling
 
-**Critical Implementation Notes (Zen MCP Validated):**
-- ✅ **Edge Case**: Multiple open portals - Apply buff to activeLocation (current portal)
-- ✅ **Persistence**: Save portalSessions in localStorage for roguelike continuity
-- ✅ **Cleanup**: Delete portalSessions[locationId] on portal collapse
-- [ ] Test: Buff persists through page reload
-- [ ] Test: Buff cleared on unexpected portal collapse
-- [ ] Test: Multiple portals don't share buffs
-
-**Acceptance Criteria:**
-- [ ] Portal-scoped consumables can be used (via inventory modal)
-- [ ] Buffs only active in specified portal (check activeLocation)
-- [ ] Clear UI shows active portal buffs (below progress bar)
-- [ ] Buffs clear on portal collapse (delete session on collapse)
-- [ ] Buffs persist across page reload (localStorage)
-- [ ] Multiple portals don't share buffs (Record<locationId, Session>)
-- [ ] Using portal consumable in Void shows error message
-- [ ] TypeScript strict mode compliance maintained
-
----
-
-### Phase 3: Portal-Exclusive Artifacts ✅ COMPLETE (100%)
-
-**Status:** Schema ✅ | Logic ✅ | Content ✅ | Integration ✅ | UI ✅ | Tested ✅
-**Priority:** POLISH - Long-term replayability, higher maintenance
-**Dependencies:** Phase 1B & Phase 2 COMPLETE
-**Completion Date:** 2025-11-02 23:30 UTC
-**Commits:** 8a77eae
-**Files Created:**
-- `lib/portal-artifacts.ts` - Drop logic module ✅
-- `lib/entities/canonical/portal-artifacts.ts` - 9 artifacts ✅
-**Files Modified:**
-- `components/dungeon-crawler.tsx` - Integration + UI ✅
-- `lib/game-engine.ts` - Type extensions ✅
-
-**Completed Tasks:**
-
-#### 1. Schema Extension ✅ COMPLETE (Pre-existing)
-- [x] Add `portalExclusive` field to treasure schema (lines 79-86 of schemas.ts)
-- [x] Add `obtainedArtifacts: string[]` to player state (line 30 of game-state.ts)
-- [x] Update treasure validation
-
-#### 2. Drop Logic Implementation ✅ COMPLETE (Session: 2025-11-02 23:00)
-- [x] Created `lib/portal-artifacts.ts` module with:
-  - `isArtifactEligible()` - Check theme, rarity, and uniqueness requirements
-  - `rollArtifactDrop()` - Roll drop chance
-  - `getEligibleArtifacts()` - Filter by portal context
-  - `attemptArtifactDrop()` - Main drop function
-- [x] Added PortalContext interface for portal metadata
-
-#### 3. Artifact Tracking ✅ COMPLETE (Pre-existing)
-- [x] Load obtained artifacts from localStorage (line 422 dungeon-crawler.tsx)
-- [x] Save obtained artifacts to localStorage (lines 446, 461, 528, 544)
-- [x] State management via `obtainedArtifacts` useState hook
-
-#### 4. Create Portal-Exclusive Artifacts ✅ COMPLETE (Session: 2025-11-02 23:05)
-Created `lib/entities/canonical/portal-artifacts.ts` with 9 themed artifacts:
-
-**Dragon's Lair (Legendary):**
-- [x] Dragon's Scale (legendary, 10% drop) - +15 DEF, +50 HP
-- [x] Scorched Blade (epic, 15% drop) - +18 ATK, +3 DEF
-
-**Crystal Caverns (Rare):**
-- [x] Crystal Heart (rare, 15% drop) - +8 ATK, +8 DEF, +30 HP
-- [x] Luminous Shard (rare, 20% drop) - +5 ATK, +10 DEF
-
-**Sunken Temple (Uncommon):**
-- [x] Sunken Relic (uncommon, 25% drop) - +12 DEF, +25 HP
-- [x] Ancient Seal (uncommon, 30% drop) - +8 DEF, +20 HP
-
-**Forgotten Catacombs (Common):**
-- [x] Bone Charm (common, 30% drop) - +8 ATK, +4 DEF
-
-**Ancient Library (Uncommon):**
-- [x] Tome of Knowledge (uncommon, 25% drop) - +6 ATK, +6 DEF, +15 HP
-
-**Abandoned Mine (Common):**
-- [x] Miner's Pickaxe (common, 30% drop) - +10 ATK, +2 DEF
-
-**Completed Tasks:**
-
-#### 5. Integration with Game Logic ✅ COMPLETE
-
-**Implementation Details:**
-
-**Step 1: Import modules** ✅
 ```typescript
-import { getAllPortalArtifacts } from "@/lib/entities/canonical/portal-artifacts"
-import { attemptArtifactDrop, type PortalContext } from "@/lib/portal-artifacts"
+// Request
+{
+  "eventType": "combat",
+  "entityRarity": "rare",
+  "portalTheme": "Dragon's Lair",
+  "contextHints": {
+    "roomNumber": 5,
+    "playerLevel": 8,
+    "recentEvents": ["combat", "treasure"]
+  }
+}
+
+// Response (200-300 tokens)
+{
+  "entityName": "Magma Sentinel",
+  "description": "A towering Magma Sentinel rises from lava pools",
+  "choiceFlavor": {
+    "attack": "Strike at its molten core",
+    "defend": "Raise shield against searing heat",
+    "flee": "Sprint through steam vents",
+    "special": "Offer obsidian tribute"
+  },
+  "outcomes": {
+    "victory": "The sentinel crumbles into cooling slag",
+    "flee": "You escape through scorching corridors",
+    "special": "The sentinel accepts your offering"
+  }
+}
 ```
 
-**Step 2: Artifact injection logic** ✅
-- [x] Created `injectArtifactDrop()` helper function in dungeon-crawler.tsx
-- [x] Integrated with `generateAINarrative()` - artifacts injected after AI generates treasures
-- [x] Built PortalContext from portal metadata (theme, rarity, rooms, stability, locationId)
-- [x] Artifacts appear as 4th treasure choice with special "⭐ Artifact!" indicator
-- [x] Track obtained artifacts in `handleTreasureChoice` with globallyUnique enforcement
-- [x] Added "artifact" debug log type for drop tracking
-
-**Step 3: Testing** ✅
-- [x] Tested with Dragon's Lair portal (legendary, 13 rooms)
-- [x] Verified themed encounters (Magma Serpent, Dragon Hoard Chest)
-- [x] Confirmed treasure events generate correctly
-- [x] Artifact drop system integrated (10-15% drop rates for Dragon's Lair artifacts)
-- [x] GloballyUnique constraint ready for testing
-
-#### 6. UI Enhancements ✅ COMPLETE
-
-**Artifact Collection Display:** ✅
-- [x] Added "🏆 Artifacts (0/9)" tab in Developer panel
-- [x] Display grid of all 9 portal-exclusive artifacts (2 columns)
-- [x] Show obtained artifacts with full details, undiscovered as "???" with opacity
-- [x] Display collection progress counter: "Collection: X/9 Artifacts Found"
-- [x] Show portal theme requirement for each artifact ("Found in: Dragon's Lair")
-
-**Artifact Treasure Choice Styling:** ✅
-- [x] Golden border + shadow for artifact treasure choices
-- [x] "⭐ ARTIFACT" badge displayed on artifact choices
-- [x] Applied to both desktop and mobile treasure choice views
-- [x] Collection complete celebration message (shows when all 9 obtained)
-
----
-
-## ✅ Phase 3 Summary
-
-**What's Complete (70%):**
-- ✅ Schema extensions (portalExclusive field, obtainedArtifacts tracking)
-- ✅ Drop logic module with full eligibility checking
-- ✅ 9 themed artifacts covering all 6 portal types
-- ✅ Artifact tracking state management
-
-**What's Remaining (30%):**
-- ⏸️ Integration: Wire artifact drops into treasure generation (1-2 hours)
-- ⏸️ UI: Artifact collection display and badges (30-60 mins)
-- ⏸️ Testing: Verify drops work correctly across all portals
-
-**Estimated Time to Complete:** 2-3 hours
-
----
-
-#### OLD TASKS (Replaced by above) - DELETE THESE
-- [ ] Load obtained artifacts from localStorage on game start
-- [ ] Save obtained artifacts on artifact acquisition
-- [ ] Add `hasObtainedArtifact(artifactId)` helper
-- [ ] Display obtained artifacts in collection UI (optional)
-- [ ] Add visual indicator for "new" artifacts
-
-#### 4. Create Portal-Exclusive Artifacts (45 mins + content)
-Create 5-10 themed artifacts:
-
-**Dragon's Lair (Legendary):**
-- [ ] **Dragon's Scale** - Legendary defense item (10% drop)
-- [ ] **Scorched Blade** - Fire damage weapon (15% drop)
-
-**Crystal Caverns (Rare):**
-- [ ] **Crystal Heart** - Mana/magic boost (15% drop)
-- [ ] **Luminous Shard** - Vision/detection buff (20% drop)
-
-**Sunken Temple (Uncommon):**
-- [ ] **Sunken Relic** - Water resistance (25% drop)
-- [ ] **Ancient Seal** - Curse protection (20% drop)
-
-**Forgotten Catacombs (Common):**
-- [ ] **Bone Charm** - Undead damage bonus (30% drop)
-
-**Ancient Library (Uncommon):**
-- [ ] **Tome of Knowledge** - XP boost (25% drop)
-
-**Abandoned Mine (Common):**
-- [ ] **Miner's Pickaxe** - Resource gathering (30% drop)
-
-- [ ] Set appropriate stats, effects, and descriptions
-- [ ] Add visual indicators (crown icon for artifacts)
-- [ ] Balance drop rates through playtesting
-
-#### 5. UI Enhancements (30 mins)
-- [ ] Add "Portal Exclusive" badge to artifact items
-- [ ] Show collection progress (X/10 artifacts found)
-- [ ] Add artifact preview in portal UI ("Can drop: Dragon's Scale")
-- [ ] Highlight new artifact acquisitions
-
-**Critical Implementation Notes:**
-- [ ] **Expert Suggestion:** Global tracking in localStorage prevents duplicates
-- [ ] Drop rates: 10-30% baseline (tune with playtesting)
-- [ ] Consider "pity system" (guaranteed drop after X portals)
+#### 0.3 Create Combat Event Template Builder (1h)
+- [ ] **File:** `lib/event-templates.ts`
+- [ ] `buildCombatEvent(seed: EntitySeed, flavor: AIFlavor): GameEvent`
+- [ ] Combines procedural stats + AI flavor
+- [ ] Constructs complete event structure
+- [ ] Test with 10 combat events, measure response time
 
 **Acceptance Criteria:**
-- [ ] 5+ themed artifacts created
-- [ ] Artifacts only drop in specified portal types
-- [ ] No duplication (tracked globally)
-- [ ] Drop rates feel fair (not too rare/common)
-- [ ] Visual indication of exclusive status
+- [ ] Combat event generation: <400ms (vs current ~1000ms)
+- [ ] AI response size: <250 tokens (vs current ~1200)
+- [ ] Event quality: Equal or better than current
+- [ ] TypeScript strict mode compliance
 
 ---
 
-## 📊 Complete Testing Checklist
+### Phase 1: Core Template System (8 hours)
 
-### Portal Progress Tracking
-- [ ] Progress displays correctly on first room
-- [ ] Progress updates after each room completion
-- [ ] Progress bar animates smoothly
-- [ ] Bonus rooms show correctly (X/Y bonus)
-- [ ] Progress persists through page reload
+**Goal:** Complete event generation pipeline for all 5 event types
 
-### Multi-Choice Treasures
-- [ ] AI generates 2-3 valid choices
-- [ ] Choices are balanced (similar value)
-- [ ] Player can select one choice
-- [ ] Selected reward applies correctly
-- [ ] Fallback works if AI fails
-- [ ] Choice selection feels intuitive
+#### 1.1 Complete Event Template Builders (4h)
+- [ ] `buildTreasureEvent(seed, flavor)` - treasure/loot encounters
+- [ ] `buildShopEvent(seed, flavor)` - NPC merchants
+- [ ] `buildShrineEvent(seed, flavor)` - sacrifice/blessing mechanics
+- [ ] `buildEncounterEvent(seed, flavor)` - non-combat NPCs
+- [ ] Shared utilities (rarity colors, icon selection, stat formatting)
 
-### Portal Theme Validation
-- [ ] Dragon's Lair generates dragon encounters
-- [ ] Crystal Caverns generates crystal encounters
-- [ ] Ancient Library generates knowledge encounters
-- [ ] Forgotten Catacombs generates undead encounters
-- [ ] Abandoned Mine generates mining encounters
-- [ ] Sunken Temple generates water/ancient encounters
+#### 1.2 Entity Seed Generator (2h)
+- [ ] **File:** `lib/entity-seed-generator.ts`
+- [ ] `generateEntitySeed(context: PortalContext): EntitySeed`
+- [ ] Select rarity based on room depth + portal difficulty
+- [ ] Choose archetype hints from portal theme
+- [ ] Calculate mechanical constraints from rarity
+- [ ] Return structured seed for AI
 
-### Portal-Scoped Consumables (Phase 2)
-- [ ] Consumable applies to active portal
-- [ ] Buff shows in portal UI
-- [ ] Buff cleared on portal exit
-- [ ] Buff cleared on portal collapse
-- [ ] Multiple portals handled correctly
-- [ ] Buff persistence across reload
+```typescript
+interface EntitySeed {
+  entityType: "enemy" | "npc" | "creature"
+  rarity: Rarity
+  archetypeHints: string[] // ["guardian", "elemental", "corrupted"]
+  thematicContext: {
+    portalTheme: string
+    biomeElements: string[]
+    threatLevel: number
+  }
+  mechanicalConstraints: {
+    baseHealth: number
+    baseAttack: number
+    goldRange: [number, number]
+    expRange: [number, number]
+  }
+}
+```
 
-### Portal-Exclusive Artifacts (Phase 3)
-- [ ] Artifacts only drop in correct portals
-- [ ] Drop rates feel fair
-- [ ] No duplicate artifacts obtained
-- [ ] Global tracking persists
-- [ ] Collection progress displays
-- [ ] Visual indicators clear
+#### 1.3 Replace Old AI Generation System (2h)
+- [ ] Update `components/dungeon-crawler.tsx`
+- [ ] Replace `generateAINarrative()` with new pipeline:
+  1. Generate EntitySeed
+  2. Call `/api/generate-flavor`
+  3. Build event with template
+- [ ] Update `handleEnterLocation()` to use new system
+- [ ] Update `handleChoice()` to use new system
+- [ ] Add performance metrics logging
 
-### Critical Fixes
-- [ ] Low stability portals collapse predictably
-- [ ] Room count consistent throughout portal
-- [ ] No infinite low-stability loops
-- [ ] Progress tracking matches actual rooms
-
----
-
-## 🎨 UI/UX Enhancements
-
-### Portal Progress Display
-- [x] Position: Top of encounter screen, below stability bar
-- [x] Style: Consistent with existing portal UI
-- [x] Font: Match current UI typography
-- [x] Colors: Use theme colors (cyan for progress bar)
-- [x] Animation: Smooth fill animation on progress
-- [ ] UNTESTED: Responsive - works on mobile/tablet
-
-### Multi-Choice Treasure Cards
-- [x] Layout: Grid or horizontal row of 2-3 cards
-- [x] Card style: Similar to POA choice buttons
-- [x] Hover effect: Scale/glow on hover
-- [x] Selection: Disable other cards after selection
-- [ ] UNTESTED: Visual feedback - checkmark or highlight on selected
-- [ ] UNTESTED: Accessibility - keyboard navigation support
-
-### Portal Buffs Indicator (Phase 2)
-- [ ] Position: Portal sidebar or top bar
-- [ ] Show: Buff name, effect, portal name
-- [ ] Icon: Visual indicator (sparkle/glow)
-- [ ] Tooltip: Detailed buff description
-- [ ] Removal: Smooth fade-out when cleared
-
-### Artifact Collection UI (Phase 3)
-- [ ] Display: Grid of artifact slots
-- [ ] Obtained: Full color with details
-- [ ] Missing: Grayed out with "???"
-- [ ] Progress: "5/10 Artifacts Found"
-- [ ] Highlight: Pulse effect on new acquisition
+**Acceptance Criteria:**
+- [ ] All 5 event types generate correctly
+- [ ] Response times consistently <400ms
+- [ ] Graceful fallback if AI fails
+- [ ] Portal theme influences AI generation
 
 ---
 
-## 📖 Documentation Updates Required
+### Phase 2: Entity Cache + Performance (6 hours)
 
-### ADR.md
-- [ ] Document portal traversal mechanics decision (Phase 1)
-- [ ] Explain POA inspiration and adaptation
-- [ ] Detail AI integration for portal encounters
-- [ ] Document portal context system (theme, rarity, risk level)
-- [ ] Detail portal-scoped consumable pattern (Phase 2)
-- [ ] Document artifact uniqueness approach (Phase 3)
-- [ ] Include trade-off analysis
+**Goal:** Achieve 30% cache hit rate and optimize for speed
 
-### CLAUDE.md
-- [ ] Add notes on portal state management
-- [ ] Document Portal Tools developer tab usage
-- [ ] Document new consumable scope types (Phase 2)
-- [ ] Explain artifact tracking in localStorage (Phase 3)
-- [ ] Note critical fixes from expert review
+#### 2.1 Entity Cache System (3h)
+- [ ] **File:** `lib/entity-cache.ts`
+- [ ] Cache by theme + rarity: `Map<string, AIEntity[]>`
+- [ ] Contextual hashing for fuzzy matching
+- [ ] 30% cache hit rate (instant responses)
+- [ ] Pre-warming during low-traffic periods
+- [ ] Cache size limits and eviction policy
 
-### NOTES.md
-- [ ] Log testing results for Phase 1A & 1B
-- [ ] Document portal theme AI prompt effectiveness
-- [ ] Document treasure choice balance findings
-- [ ] Log portal-scoped consumable state management (Phase 2)
-- [ ] Document edge cases for multiple open portals (Phase 2)
-- [ ] Note AI choice balance tuning needs
-- [ ] Record artifact drop rate baseline (Phase 3, 10-30%)
+```typescript
+export class EntityCache {
+  private cache: Map<string, AIEntity[]>
 
----
+  getCached(theme: string, rarity: Rarity): AIEntity | null {
+    const cacheKey = `${theme}:${rarity}`
+    const entities = this.cache.get(cacheKey) || []
 
-## ⚠️ Known Risks & Mitigations
+    // 30% chance to use cached entity
+    if (entities.length >= 3 && Math.random() < 0.3) {
+      return selectRandom(entities)
+    }
+    return null
+  }
 
-### 1. Portal State Complexity (🟡45) - Phase 2
-**Risk:** Multiple open portals with scoped buffs creates complex state management
-**Mitigation:**
-- Use explicit PortalSession tracking
-- Clear separation of portal-specific state
-- Thorough testing of multi-portal scenarios
+  store(entity: AIEntity, theme: string, rarity: Rarity): void {
+    const cacheKey = `${theme}:${rarity}`
+    const entities = this.cache.get(cacheKey) || []
+    entities.push(entity)
 
-### 2. AI Choice Balance (🟡35) - Phase 1B
-**Risk:** AI may generate unbalanced treasure choices
-**Mitigation:**
-- Structured prompts with value guidelines
-- Fallback to simple treasure if imbalanced
-- Manual review of AI output during testing
-- Iterative prompt tuning
+    // Keep max 10 per cache key
+    if (entities.length > 10) entities.shift()
 
-### 3. Artifact Drop Rates (🟢25) - Phase 3
-**Risk:** Drop rates may feel too rare or too common
-**Mitigation:**
-- Start with generous rates (10-30%)
-- Gather playtest feedback
-- Implement rate adjustments dynamically
-- Consider pity system for very rare items
+    this.cache.set(cacheKey, entities)
+  }
+}
+```
 
-### 4. Performance - AI Generation (🟢20) - Phase 1B
-**Risk:** Multiple AI calls may slow portal opening
-**Mitigation:**
-- Cache portal skeletons (24 hours)
-- Progressive room loading
-- Optimize AI prompts for speed
-- Monitor API usage
-- Fallback to static events on failure
+#### 2.2 Progressive Portal Generation (2h)
+- [ ] Generate portal-wide themes on entry (1 heavy call)
+- [ ] Generate room-by-room flavor using skeleton (12 light calls)
+- [ ] 40% faster overall portal generation
+- [ ] Cache portal skeletons in session storage
+
+#### 2.3 Performance Monitoring (1h)
+- [ ] Add metrics to API routes
+- [ ] Track: AI response time, cache hit rate, fallback usage
+- [ ] Display in developer tools
+- [ ] Add performance budget alerts
+
+**Acceptance Criteria:**
+- [ ] 30% of events use cache (instant)
+- [ ] Average response time <300ms
+- [ ] Portal entry feels fast (<1s total)
+- [ ] Metrics visible in dev tools
 
 ---
 
-## 🚀 Optional Future Enhancements
+### Phase 3: Reactive UI System (10 hours) 🎨 UI FOCUS
 
-**Not in current scope, consider after Phase 3:**
+**Goal:** "Flow like water" - silky smooth DOM transitions and coupled state
 
-- [ ] **Portal Modifiers** - Buffs/debuffs that affect entire portal (e.g., "Cursed" portal with 2x rewards but 1.5x difficulty)
-- [ ] **Portal Chains** - Completing one portal unlocks access to related portal
-- [ ] **Dynamic Difficulty** - Portal adjusts based on player performance
-- [ ] **Portal Challenges** - Optional objectives for bonus rewards
-- [ ] **Portal Leaderboards** - Track fastest/most efficient clears
-- [ ] **Portal Crafting** - Combine map fragments to create custom portals
-- [ ] **Portal Events** - Timed special portals with unique rewards
-- [ ] **Portal Achievements** - Track exploration milestones
+#### 3.1 Design Reactive UI Architecture (2h)
+- [ ] **File:** `lib/ui-state-manager.ts`
+- [ ] Define UI component groups (battle, shop, treasure, choices)
+- [ ] State machine for UI transitions
+- [ ] Animation choreography system
+- [ ] Event queue for sequential updates
+
+```typescript
+interface UIComponentGroup {
+  id: string
+  type: "battle" | "shop" | "treasure" | "choices" | "message"
+  state: "mounting" | "mounted" | "unmounting" | "unmounted"
+  data: any
+  priority: number
+}
+
+class UIStateManager {
+  private activeGroups: Map<string, UIComponentGroup>
+  private transitionQueue: UIComponentGroup[]
+
+  // Replace current group with new group (fluid transition)
+  async transition(from: string, to: UIComponentGroup) {
+    // 1. Start unmounting old component
+    await this.unmount(from)
+    // 2. Mount new component
+    await this.mount(to)
+  }
+
+  // Couple related components (e.g., choice selected → battle log update)
+  couple(groupIds: string[], updateFn: () => void) {
+    // When any group in the set updates, trigger updateFn
+  }
+}
+```
+
+#### 3.2 Build Reactive Event Components (4h)
+- [ ] **Component:** `BattleEventGroup.tsx`
+  - Enemy appears → Attack/Defend/Flee choices → Choice selected → Battle log updates → Choices disappear
+- [ ] **Component:** `ShopEventGroup.tsx`
+  - Shop appears → Browse items → Buy item → Shop disappears → Purchase message → Inventory updates
+- [ ] **Component:** `TreasureEventGroup.tsx`
+  - Treasure appears → Treasure choices → Choice selected → Choices disappear → Reward message → Inventory updates
+- [ ] **Component:** `ShrineEventGroup.tsx`
+  - Shrine appears → Sacrifice choices → Offering made → Blessing/curse animation → Result message
+- [ ] **Component:** `EncounterEventGroup.tsx`
+  - NPC appears → Dialogue choices → Choice selected → Outcome message → NPC disappears
+
+**Key Features:**
+- Framer Motion for smooth mount/unmount animations
+- State coupling (choice selection triggers multiple UI updates)
+- Transition choreography (sequence of DOM changes)
+- Loading states with skeleton screens
+
+#### 3.3 Integrate Reactive UI with Game State (3h)
+- [ ] Update `components/dungeon-crawler.tsx`
+- [ ] Replace monolithic event log with reactive groups
+- [ ] Implement UI state manager
+- [ ] Add animation system
+- [ ] Test fluid transitions across all event types
+
+#### 3.4 Polish and Refinement (1h)
+- [ ] Tune animation timings (mount: 200ms, unmount: 150ms)
+- [ ] Add micro-interactions (hover, click feedback)
+- [ ] Test on different screen sizes
+- [ ] Optimize for 60fps animations
+
+**Acceptance Criteria:**
+- [ ] All UI transitions feel smooth and intentional
+- [ ] No jarring DOM updates or flashes
+- [ ] State updates are coupled correctly
+- [ ] Animations run at 60fps
+- [ ] Mobile-responsive and accessible
 
 ---
 
-## 📝 Session Handoff Notes
+### Phase 4: AI-Driven Item Generation (8 hours)
 
-### Session 2025-11-02 Summary - Phase 1, 2, 3 (70%) COMPLETE ✅
+**Goal:** Groq generates unique items with limitless creativity
 
-**Commits This Session:**
-- fe88570 - "feat: Implement portal traversal enhancements (Phase 1A & 1B)"
-- 85fdb4e - "feat: Complete Phase 1B integration - AI treasure choices for portal traversal"
-- 3d6032e - "feat: Add Portal Tools developer tab for easy map item generation"
-- 14808b5 - "feat: Complete Phase 2 portal-scoped consumables + Phase 3 schema extensions"
-- 3d7e8bd - "fix: Add obtainedArtifacts to beforeunload useEffect dependency array"
+#### 4.1 Item Generation Templates (2h)
+- [ ] **File:** `lib/item-templates.ts`
+- [ ] Weapon templates (stats based on rarity)
+- [ ] Armor templates (defense scaling)
+- [ ] Accessory templates (hybrid bonuses)
+- [ ] Consumable templates (effect types)
 
-**This Session (/todo all execution):**
-- ✅ **Phase 2 Verification** - Code analysis confirmed portal-scoped consumables 100% complete
-- ✅ **Phase 3 Schema** - portalExclusive field and obtainedArtifacts tracking already in place
-- ✅ **Phase 3 Drop Logic** - Created `lib/portal-artifacts.ts` with full drop system
-- ✅ **Phase 3 Artifacts** - Created 9 themed artifacts in `lib/entities/canonical/portal-artifacts.ts`
-- ⏸️ **Phase 3 Integration** - NOT STARTED (1-2 hours remaining)
-- ⏸️ **Phase 3 UI** - NOT STARTED (30-60 mins remaining)
-- ✅ **Documentation** - Updated TODO.md with Phase 3 progress
+#### 4.2 AI Item Flavor Endpoint (3h)
+- [ ] **Endpoint:** `/api/generate-item-flavor`
+- [ ] Groq generates: name, description, lore snippet
+- [ ] Game provides: item type, rarity, stats, effect type
+- [ ] Validates generated names for uniqueness
+- [ ] Caches generated items for reuse
 
-**Files Created This Session:**
-- `lib/portal-artifacts.ts` - Drop logic module (isArtifactEligible, rollArtifactDrop, attemptArtifactDrop)
-- `lib/entities/canonical/portal-artifacts.ts` - 9 portal-exclusive artifacts
+```typescript
+// Request
+{
+  "itemType": "weapon",
+  "rarity": "rare",
+  "stats": { "attack": 18, "defense": 3 },
+  "themeHints": ["dragon", "fire", "volcanic"]
+}
 
-**Files Modified This Session:**
-- `docs/TODO.md` - Comprehensive Phase 3 progress update
+// Response
+{
+  "name": "Dragonbone Cleaver",
+  "description": "Forged from the spine of an ancient wyrm",
+  "loreSnippet": "Legends say it still burns with dragon fire",
+  "flavorTags": ["fire", "ancient", "powerful"]
+}
+```
 
-**Phase 1 & 2 Status:**
-- ✅ Phase 1A: Portal progress tracking (COMPLETE & TESTED)
-- ✅ Phase 1B: AI treasure choices (COMPLETE & TESTED)
-- ✅ Phase 2: Portal-scoped consumables (COMPLETE - verified via code analysis)
-  - Buff UI implemented and functional
-  - Portal session tracking working
-  - LocalStorage persistence confirmed
+#### 4.3 Integrate AI Items into Events (2h)
+- [ ] Update treasure event builder
+- [ ] Update shop event builder
+- [ ] Update shrine reward system
+- [ ] Test AI item generation in portals
 
-**Phase 3 Status (70% Complete):**
-- ✅ Schema extensions (portalExclusive, obtainedArtifacts)
-- ✅ Drop logic module with eligibility checking
-- ✅ 9 themed artifacts (Dragon's Lair, Crystal Caverns, etc.)
-- ⏸️ Integration with treasure generation (NOT STARTED)
-- ⏸️ Artifact collection UI (NOT STARTED)
+#### 4.4 Item Collection UI (1h)
+- [ ] Display AI-generated items in inventory
+- [ ] Show item lore on hover
+- [ ] Highlight new unique items
+- [ ] Track collection of unique AI items
 
-**Next Session - Complete Phase 3 (2-3 hours):**
-1. **Integration (1-2 hours):**
-   - Import portal artifacts in dungeon-crawler.tsx
-   - Call attemptArtifactDrop() in treasure generation
-   - Track obtained artifacts in state
-   - Test artifact drops across all portals
-
-2. **UI Enhancement (30-60 mins):**
-   - Add "🏆 Artifacts" tab to Developer panel
-   - Display artifact collection (X/9 found)
-   - Add portal-exclusive badges to inventory items
-
-3. **Testing & Polish:**
-   - Verify artifact drops work correctly
-   - Test globallyUnique constraint
-   - Balance drop rates if needed
+**Acceptance Criteria:**
+- [ ] AI generates unique, thematic item names
+- [ ] Items feel cohesive with portal theme
+- [ ] No duplicate item names
+- [ ] Item generation adds <100ms overhead
+- [ ] Dopamine rush from discovering new items
 
 ---
 
-**Last Updated:** 2025-11-02 23:30 UTC
-**Status:** ✅ Phase 1, 2, & 3 COMPLETE (100%)
-**Next Action:** Manual testing across all 6 portal themes (optional)
+## 📊 Testing Strategy
+
+### Automated Testing (Playwright MCP)
+
+**Phase 0 POC:**
+- [ ] Generate 10 combat events, verify <400ms
+- [ ] Verify AI flavor quality vs. current system
+- [ ] Test fallback chain (AI fail → cache → procedural)
+
+**Phase 1 Template System:**
+- [ ] Generate 50 events (10 of each type)
+- [ ] Verify response times <400ms avg
+- [ ] Validate event data structure
+- [ ] Test portal theme influence
+
+**Phase 2 Performance:**
+- [ ] Measure cache hit rate (target: 30%)
+- [ ] Measure progressive generation speed
+- [ ] Stress test with 100 rapid events
+- [ ] Monitor memory usage
+
+**Phase 3 Reactive UI:**
+- [ ] Test all UI transition sequences
+- [ ] Verify 60fps animations
+- [ ] Test rapid user interactions
+- [ ] Mobile responsiveness tests
+
+**Phase 4 AI Items:**
+- [ ] Generate 100 unique items
+- [ ] Verify name uniqueness
+- [ ] Test item quality and theme coherence
+- [ ] Performance impact measurement
+
+---
+
+## 🎨 UI/UX Flow Examples
+
+### Combat Flow (Silky Smooth)
+
+```
+1. Room Enter → Mount: Enemy encounter (fade in, 200ms)
+2. Enemy Stats → Mount: Health bar, attack value (slide in, 150ms)
+3. Choices → Mount: [Attack] [Defend] [Flee] (stagger, 100ms each)
+4. User clicks "Attack"
+5. Choices → Unmount: All choices fade out (150ms)
+6. Battle Log → Mount: "You strike the enemy!" (fade in, 200ms)
+7. Enemy Stats → Update: Health bar drains (animated, 300ms)
+8. New Choices → Mount: [Attack Again] [Flee] (fade in, 200ms)
+9. Enemy defeated → Unmount: Enemy + choices (fade out, 200ms)
+10. Rewards → Mount: Gold/exp gained (scale in, 300ms)
+11. Next Room → Transition: Portal progress updates (smooth, 200ms)
+```
+
+### Shop Flow (Fluid State Coupling)
+
+```
+1. Room Enter → Mount: Shop encounter (fade in, 200ms)
+2. Shop Inventory → Mount: 3 items with prices (stagger, 100ms each)
+3. Choices → Mount: [Browse] [Buy Item 1] [Buy Item 2] [Leave] (fade in, 150ms)
+4. User clicks "Buy Item 1"
+5. Choices → Unmount: All choices fade out (150ms)
+6. Shop → Unmount: Entire shop fades out (200ms)
+7. Purchase Message → Mount: "Bought Emberforged Blade!" (scale in, 300ms)
+8. Inventory → Update: New item appears (pulse highlight, 400ms)
+9. Gold → Update: Gold count decreases (animated, 200ms)
+10. Next Room → Transition: Continue exploration
+```
+
+### Treasure Flow (Reactive Choice Removal)
+
+```
+1. Room Enter → Mount: Treasure chest (fade in, 200ms)
+2. Treasure Choices → Mount: [Item] [Gold] [Health] (stagger, 100ms each)
+3. User hovers over [Item]
+4. Item Preview → Mount: Item details tooltip (instant)
+5. User clicks [Item]
+6. Selected Choice → Highlight: Golden glow (100ms)
+7. Other Choices → Unmount: [Gold] [Health] fade out (150ms)
+8. Treasure Chest → Unmount: Chest disappears (200ms)
+9. Reward Message → Mount: "Found: Crystal Heart!" (scale in, 300ms)
+10. Inventory → Update: New item added (pulse, 400ms)
+11. Next Room → Transition: Progress continues
+```
+
+---
+
+## ⚙️ Performance Budgets
+
+| Metric | Current | Target | Status |
+|--------|---------|--------|--------|
+| Event Generation | 800-1200ms | <400ms | 🔴 TODO |
+| AI Response Size | 1200 tokens | <250 tokens | 🔴 TODO |
+| Cache Hit Rate | 0% | 30% | 🔴 TODO |
+| UI Animation FPS | Variable | 60fps | 🔴 TODO |
+| Portal Entry Time | 2-3s | <1s | 🔴 TODO |
+| Memory Usage | Unknown | <50MB | 🔴 TODO |
+
+---
+
+## 🚀 Success Metrics
+
+**Performance:**
+- [x] **Zen MCP Analysis:** 92% confidence (Opus 4 validated)
+- [ ] Event generation: 3-5x faster
+- [ ] AI response: 6x smaller
+- [ ] Cache hit rate: 30%
+- [ ] UI: 60fps animations
+
+**Quality:**
+- [ ] AI creativity: Equal or better variety
+- [ ] Game balance: More consistent
+- [ ] UI fluidity: "Flow like water" achieved
+- [ ] Player engagement: "WTF is next?!" factor
+
+**Maintainability:**
+- [ ] Easier to tune (procedural formulas)
+- [ ] Clearer separation of concerns
+- [ ] Better TypeScript types
+- [ ] Comprehensive testing
+
+---
+
+## 📝 Next Session Checklist
+
+**Before starting Phase 0:**
+1. [ ] Commit any uncommitted changes
+2. [ ] Fix linting warning in `entity-text.tsx:251`
+3. [ ] Backup current `/api/generate-narrative` (reference only)
+4. [ ] Review Zen MCP analysis (this document)
+5. [ ] Set up performance monitoring tools
+
+**Start with:**
+- [ ] Phase 0.1: Procedural formulas library (1.5h)
+- [ ] Run quick tests to validate formulas
+- [ ] Commit and move to Phase 0.2
+
+---
+
+**Last Updated:** 2025-11-02 Session 3
+**Status:** 🔴 Ready to implement Phase 0 POC
+**Next Action:** Create `lib/procedural-formulas.ts`

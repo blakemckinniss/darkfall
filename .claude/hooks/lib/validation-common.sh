@@ -33,10 +33,6 @@ check_blocked_patterns() {
   local prompt="$1"
 
   local blocked_patterns=(
-    "create.*README"
-    "write.*documentation"
-    "generate.*example"
-    "create.*demo"
   )
 
   for pattern in "${blocked_patterns[@]}"; do

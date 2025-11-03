@@ -1,9 +1,9 @@
 {
   "quality_long_method": {
-    "threshold": 168.75,
-    "trigger_count": 5,
-    "last_trigger": "2025-11-02T22:23:08.195833+00:00",
-    "cooldown_until": "2025-11-02T23:24:08.035304+00:00",
+    "threshold": 379.6875,
+    "trigger_count": 7,
+    "last_trigger": "2025-11-03T00:33:43.901196+00:00",
+    "cooldown_until": "2025-11-03T01:34:14.841676+00:00",
     "default_threshold": 50
   },
   "quality_high_complexity": {
@@ -35,10 +35,10 @@
     "default_threshold": 5
   },
   "quality_magic_numbers": {
-    "threshold": 16.875,
-    "trigger_count": 3,
-    "last_trigger": "2025-11-02T22:28:49.843742+00:00",
-    "cooldown_until": "2025-11-02T23:29:11.527439+00:00",
+    "threshold": 25.3125,
+    "trigger_count": 4,
+    "last_trigger": "2025-11-03T00:13:13.482759+00:00",
+    "cooldown_until": "2025-11-03T01:14:10.219022+00:00",
     "default_threshold": 5
   },
   "perf_blocking_io": {
@@ -49,10 +49,17 @@
     "default_threshold": 1
   },
   "perf_repeated_calculation": {
-    "threshold": 3,
+    "threshold": 4.5,
+    "trigger_count": 1,
+    "last_trigger": "2025-11-03T00:13:13.483050+00:00",
+    "cooldown_until": "2025-11-03T01:14:10.219236+00:00",
+    "default_threshold": 3
+  },
+  "perf_repeated_calculation_ops": {
+    "threshold": 2,
     "trigger_count": 0,
     "last_trigger": null,
     "cooldown_until": null,
-    "default_threshold": 3
+    "default_threshold": 2
   }
 }
