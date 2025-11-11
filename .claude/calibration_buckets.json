@@ -1,0 +1,49 @@
+{
+  "_schema_version": "1.0",
+  "_description": "Calibration bucket statistics for confidence system",
+  "_updated": null,
+  "buckets": {},
+  "priors": {
+    "alpha": 2.0,
+    "beta": 2.0,
+    "description": "Beta(2,2) prior - conservative with slight center bias"
+  },
+  "global_stats": {
+    "total_tasks": 0,
+    "total_successes": 0,
+    "total_failures": 0,
+    "overall_success_rate": 0.0,
+    "calibration_error": null
+  },
+  "bucket_template": {
+    "_comment": "Template for bucket structure",
+    "example_bucket_id": {
+      "bucket_id": "atomic|generic|low_novelty|internal|na",
+      "task_class": "atomic",
+      "stack": "generic",
+      "novelty_bin": "low_novelty",
+      "externality_bin": "internal",
+      "test_coverage": "na",
+      "stats": {
+        "total": 0,
+        "successes": 0,
+        "failures": 0,
+        "success_rate": 0.0
+      },
+      "calibration": {
+        "method": "none",
+        "samples_needed": 20,
+        "platt_params": null,
+        "isotonic_points": null
+      },
+      "bayesian": {
+        "alpha_posterior": 2.0,
+        "beta_posterior": 2.0,
+        "p_mean": 0.5,
+        "p_lower_90": 0.127,
+        "p_upper_90": 0.873
+      },
+      "history_sample": []
+    }
+  }
+}

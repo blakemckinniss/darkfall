@@ -1,0 +1,17 @@
+# Confidence Calibration System Dependencies
+
+# Required for Bayesian bounds calculation (Beta distribution)
+scipy>=1.9.0
+
+# Required for Platt Scaling and Isotonic Regression
+scikit-learn>=1.2.0
+numpy>=1.23.0
+
+# Optional: For better performance and visualization
+# pandas>=1.5.0  # Data analysis (optional)
+# matplotlib>=3.6.0  # Plotting calibration curves (optional)
+
+# Installation:
+# pip install -r .claude/hooks/requirements.txt
+# or
+# pip install scipy scikit-learn numpy

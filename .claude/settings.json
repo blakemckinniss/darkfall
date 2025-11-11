@@ -23,6 +23,12 @@
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/tool-awareness.py",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/confidence-classifier.sh",
+            "timeout": 5,
+            "comment": "Confidence Calibration System - Task Classification"
           }
         ]
       }
@@ -82,6 +88,12 @@
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/posttooluse-metacognition.py",
             "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/confidence-auditor.py",
+            "timeout": 10,
+            "comment": "Confidence Calibration System - Rubric Audit"
           }
         ]
       },
