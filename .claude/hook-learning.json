@@ -1,30 +1,30 @@
 {
   "quality_long_method": {
-    "threshold": 379.6875,
-    "trigger_count": 7,
-    "last_trigger": "2025-11-03T00:33:43.901196+00:00",
-    "cooldown_until": "2025-11-03T01:34:14.841676+00:00",
+    "threshold": 415.18828125000005,
+    "trigger_count": 8,
+    "last_trigger": "2025-11-11T03:59:30.090838+00:00",
+    "cooldown_until": "2025-11-11T05:00:13.936077+00:00",
     "default_threshold": 50
   },
   "quality_high_complexity": {
-    "threshold": 22.5,
-    "trigger_count": 3,
-    "last_trigger": "2025-11-02T23:08:45.125398+00:00",
-    "cooldown_until": "2025-11-03T00:09:37.834809+00:00",
+    "threshold": 24.603750000000005,
+    "trigger_count": 4,
+    "last_trigger": "2025-11-11T03:59:30.091036+00:00",
+    "cooldown_until": "2025-11-11T05:00:13.936239+00:00",
     "default_threshold": 10
   },
   "quality_deep_nesting": {
-    "threshold": 13.5,
-    "trigger_count": 3,
-    "last_trigger": "2025-11-02T22:32:48.568250+00:00",
-    "cooldown_until": "2025-11-02T23:33:04.051062+00:00",
+    "threshold": 13.286025,
+    "trigger_count": 4,
+    "last_trigger": "2025-11-11T04:00:13.936440+00:00",
+    "cooldown_until": "2025-11-11T05:00:28.181159+00:00",
     "default_threshold": 4
   },
   "quality_debug_statements": {
-    "threshold": 6.75,
-    "trigger_count": 2,
-    "last_trigger": "2025-11-02T22:59:12.857690+00:00",
-    "cooldown_until": "2025-11-02T23:59:33.340831+00:00",
+    "threshold": 8.20125,
+    "trigger_count": 4,
+    "last_trigger": "2025-11-11T03:59:30.091500+00:00",
+    "cooldown_until": "2025-11-11T04:59:30.091406+00:00",
     "default_threshold": 3
   },
   "quality_tech_debt_markers": {
@@ -35,10 +35,10 @@
     "default_threshold": 5
   },
   "quality_magic_numbers": {
-    "threshold": 25.3125,
-    "trigger_count": 4,
-    "last_trigger": "2025-11-03T00:13:13.482759+00:00",
-    "cooldown_until": "2025-11-03T01:14:10.219022+00:00",
+    "threshold": 24.911296875,
+    "trigger_count": 5,
+    "last_trigger": "2025-11-11T04:00:13.937099+00:00",
+    "cooldown_until": "2025-11-11T05:00:28.181179+00:00",
     "default_threshold": 5
   },
   "perf_blocking_io": {
@@ -49,7 +49,7 @@
     "default_threshold": 1
   },
   "perf_repeated_calculation": {
-    "threshold": 4.5,
+    "threshold": 1.5,
     "trigger_count": 1,
     "last_trigger": "2025-11-03T00:13:13.483050+00:00",
     "cooldown_until": "2025-11-03T01:14:10.219236+00:00",

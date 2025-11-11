@@ -123,3 +123,20 @@ Auto-generated log of all critical (76-100) documentation, technical debt, and n
 - ⭐90 Implement Phase 2 Entity Cache - Cache procedural entities to eliminate Groq calls for repeated entities (target: 30% cache hit rate)
 - ⭐85 Add Token Counting Metrics - Monitor actual AI response sizes to validate optimization efforts
 
+
+## 2025-01-10 14:30 - [DOCS]
+- 🔴80 docs/ADR.md - Document complete confidence calibration system architecture, mathematical framework, and integration decision
+
+## 2025-01-10 14:30 - [NEXT]
+- ⭐95 Restart Claude Code - Required to activate the new hook configuration
+- ⭐90 Install Python dependencies - Run `pip install scipy scikit-learn numpy` for full functionality
+- ⭐85 Test with real prompts - Verify hooks trigger correctly and rubric requirements display
+- ⭐80 Week 4: Calibration + Pilot - Run synthetic bootstrap, pilot testing, tune thresholds, generate calibration report
+
+## 2025-11-11 04:35 - [DOCS]
+- 🔴80 docs/ADR.md - Document Zen MCP conflict detector enhancements: caching strategy, retry logic, continuation_id usage
+
+## 2025-11-11 04:35 - [NEXT]
+- ⭐95 Commit the confidence calibration system - 33 uncommitted files ready for version control
+- ⭐90 Test Zen MCP integration live - Verify actual API calls work with caching and retries
+- ⭐85 Add cache size limits - Implement max 100 entries with LRU eviction policy
