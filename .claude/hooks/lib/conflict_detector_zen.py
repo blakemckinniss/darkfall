@@ -178,6 +178,9 @@ If no conflicts are found, "conflicts_found" should be false and "conflicting_pa
 
         Canonicalizes evidence by sorting and serializing to ensure
         consistent hashing regardless of input order.
+
+        CRITICAL: Cache key MUST include continuation_id to prevent
+        serving stale responses when conversation context changes.
         """
         # Convert evidence to serializable dicts and sort
         evidence_dicts = []
@@ -198,7 +201,12 @@ If no conflicts are found, "conflicts_found" should be false and "conflicting_pa
 
         # Serialize and hash
         canonical_string = json.dumps(sorted_evidence, sort_keys=True)
-        return hashlib.sha256(canonical_string.encode('utf-8')).hexdigest()
+        evidence_hash = hashlib.sha256(canonical_string.encode('utf-8')).hexdigest()
+
+        # Include continuation_id in cache key to prevent context pollution
+        if self.continuation_id:
+            return f"{evidence_hash}:{self.continuation_id}"
+        return evidence_hash
 
     def _get_cached_result(self, cache_key: str) -> Optional[ConflictResult]:
         """Get cached result if valid (within TTL)"""
