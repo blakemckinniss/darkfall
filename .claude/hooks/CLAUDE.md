@@ -12,9 +12,12 @@ This directory contains custom hooks for Claude Code that enforce project-specif
 ├── lib/
 │   ├── validation-common.sh      # Shared validation functions
 │   ├── pattern-detection.sh      # Task type and risk detection
-│   └── typescript-checks.sh      # TypeScript/ESLint checking
+│   ├── typescript-checks.sh      # TypeScript/ESLint checking
+│   ├── task_classifier.py        # Fast task classification (NEW)
+│   └── quick_tool_planner.py     # Tool planning pattern matcher (NEW)
 ├── prompt-validator.sh            # 350 lines (was 663) - uses shared libs
 ├── session-start.sh               # Uses inline functions
+├── tool-planner.sh                # Tool planning hook (NEW - Phase 1 MVP)
 ├── pre-tool-pattern-prevention.sh # 122 lines
 ├── validate-directory-creation.sh # 52 lines
 ├── validate-markdown-creation.sh  # 147 lines
@@ -47,7 +50,90 @@ This directory contains custom hooks for Claude Code that enforce project-specif
 
 ## Hooks Overview
 
-### 1. Directory Creation Validation
+### 1. Tool Planning Hook (NEW - Phase 1 MVP)
+**File**: `tool-planner.sh`
+**Triggers**: UserPromptSubmit (after confidence-classifier)
+**Purpose**: Generates strategic tool usage recommendations to optimize task execution
+
+**How It Works:**
+1. **Task Classification** - Reuses confidence system classification (atomic/routine/complex/risky/open_world)
+2. **Conditional Execution** - Only runs planning for tasks that benefit from it
+3. **Pattern Matching** - Detects parallelization, script opportunities, MCP tool usage, and agent delegation
+4. **Strategic Guidance** - Provides advisory recommendations without restricting Claude's autonomy
+
+**Performance Targets:**
+- Atomic: 0s (skipped entirely)
+- Routine: < 3s (fast pattern matching)
+- Complex: < 7s (comprehensive patterns)
+- Risky/Open World: < 15s (future: Zen MCP integration)
+
+**Optimization Patterns Detected:**
+
+⚡ **Parallelization**
+- Multiple file operations → Suggests parallel Read calls
+- Independent API calls → Batch processing
+- Example: "Refactor UserService.ts, AuthService.ts, DatabaseManager.ts"
+
+📝 **Script Generation**
+- Testing/validation keywords → tmp-test-runner.sh
+- Build operations → tmp-build-script.sh
+- Example: "Run tests and validate the authentication flow"
+
+🔧 **MCP Tool Selection**
+- Open world research → MANDATORY zen:chat with websearch
+- Browser interaction → MANDATORY playwright MCP
+- Debugging → zen:debug suggested
+- Decisions → zen:consensus suggested
+- Code review → zen:codereview suggested
+
+🤖 **Agent Delegation**
+- 3+ sequential tasks → Parallel agent execution
+- 5+ files modified → Specialized agent suggestion
+- Example: "Update user system then fix auth then update tests"
+
+**Caching:**
+- 5-minute TTL for similar prompts
+- Reduces latency for repeated task patterns
+- Automatically invalidated when needed
+
+**Example Output:**
+```
+## 🛠️ Tool Strategy (Auto-Generated)
+
+**Task Class:** complex | **Planning Tier:** 1 (local pattern matching)
+
+**Recommended Optimizations:**
+1. ⚡ **Parallelization**: Files [UserService.ts, AuthController.ts] can be read simultaneously
+2. 🤖 **Agent**: Complex multi-file task (5 files) - consider Task tool with specialized agent
+
+**Estimated Time Savings:** ~90s
+**Confidence Boost:** +0.15 (via tooling_optimization_score)
+
+**Execution Strategy:**
+- Use single message with multiple tool calls for parallel operations
+- Generate helper scripts for repeated operations
+- Consult appropriate MCP tools when needed
+```
+
+**Implementation Details:**
+- **Library Files:**
+  - `lib/task_classifier.py` - Fast task classification (< 50ms)
+  - `lib/quick_tool_planner.py` - Pattern matching and plan generation
+- **Future Phases:**
+  - Phase 2: Zen MCP integration for deep planning on risky/open_world tasks
+  - Phase 3: Learning loop to improve recommendations based on outcomes
+
+**Disabling:**
+To disable tool planning, comment out the hook in `.claude/settings.json`:
+```json
+// {
+//   "type": "command",
+//   "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/tool-planner.sh",
+//   "timeout": 15
+// }
+```
+
+### 2. Directory Creation Validation
 **File**: `validate-directory-creation.sh`
 **Triggers**: PreToolUse (directory creation)
 **Purpose**: Requires AI justification and user approval before creating new directories
