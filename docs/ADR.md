@@ -1203,10 +1203,51 @@ detector = ConflictDetectorZen(
 | **Latency** | Low (small payloads) | Higher (large payloads) |
 
 **Logical Task Boundaries:**
-- **Conflict Detection**: One continuation_id per evidence analysis session
-- **Task Classification**: New ID per user prompt (no cross-contamination)
-- **Calibration Tuning**: One ID per tuning iteration
-- **Multi-Step Analysis**: Reuse ID for follow-ups/refinements within same goal
+
+Define a "logical task" as a single user goal with a clear start and completion criteria. Create new continuation_id when task completes or topic shifts.
+
+**1. Conflict Detection** - One continuation_id per evidence analysis session
+- **Example Task**: "Analyze conflicts between 3 sources about Tailwind v4 requirements"
+- **Boundary Start**: User requests conflict analysis
+- **Reuse ID For**: Follow-up questions ("What about source credibility?"), refinements ("Re-analyze with updated source")
+- **Reset ID When**: User moves to different evidence set or different analysis topic
+- **Typical Length**: 3-8 turns (initial analysis + 2-5 follow-ups)
+
+**2. Task Classification** - New ID per user prompt classification request
+- **Example Task**: "Classify task complexity for implementing authentication system"
+- **Boundary Start**: UserPromptSubmit hook triggers classification
+- **Reuse ID For**: DO NOT reuse - each prompt gets fresh classification to avoid bias
+- **Reset ID When**: Every new user prompt (strict isolation)
+- **Typical Length**: 1 turn (single classification call, no conversation)
+- **Rationale**: Classification must be independent per prompt to prevent context pollution
+
+**3. Calibration Tuning** - One ID per tuning iteration
+- **Example Task**: "Adjust confidence thresholds based on Week 4 pilot results"
+- **Boundary Start**: User initiates calibration review with outcome data
+- **Reuse ID For**: Iterative refinements ("Try lowering threshold by 0.05"), alternative approaches ("What if we use isotonic regression?")
+- **Reset ID When**: Tuning session completes (user accepts changes) or shifts to different calibration aspect (e.g., tripwire tuning → metric weights)
+- **Typical Length**: 8-15 turns (analysis + iterations + validation)
+
+**4. Multi-Step Systematic Analysis** (thinkdeep, debug, codereview)
+- **Example Task**: "Debug why confidence scores are consistently overestimating for open_world tasks"
+- **Boundary Start**: User requests investigation
+- **Reuse ID For**: All investigation steps within same root cause hunt, proposed solutions, testing fixes
+- **Reset ID When**: Root cause found and fixed, or user pivots to different debugging task
+- **Typical Length**: 10-20 turns (systematic investigation across multiple hypotheses)
+
+**5. Planning Sessions** (planner tool)
+- **Example Task**: "Plan implementation strategy for Week 4 outcome tracking"
+- **Boundary Start**: User requests implementation plan
+- **Reuse ID For**: Plan revisions, branch exploration, alternative approaches within same project phase
+- **Reset ID When**: Plan finalized and approved, or user shifts to different feature/project
+- **Typical Length**: 5-15 turns (initial plan + iterations + branch exploration)
+
+**6. Code Review Sessions** (codereview tool)
+- **Example Task**: "Review confidence-auditor.py for security and performance issues"
+- **Boundary Start**: User requests code review
+- **Reuse ID For**: Addressing review findings, clarifying concerns, discussing trade-offs
+- **Reset ID When**: Review complete and issues addressed, or user shifts to reviewing different file/component
+- **Typical Length**: 5-12 turns (initial review + discussion + follow-up checks)
 
 **Lifecycle Management:**
 - Create new continuation_id when user starts distinct logical operation
