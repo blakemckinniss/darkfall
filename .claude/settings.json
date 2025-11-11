@@ -35,6 +35,12 @@
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/tool-planner.sh",
             "timeout": 15,
             "comment": "Tool Planning Hook - Strategic Tool Usage Recommendations"
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/drift-awareness.sh",
+            "timeout": 2,
+            "comment": "Drift Prevention - Pre-Execution ADR Warnings"
           }
         ]
       }
@@ -100,6 +106,17 @@
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/confidence-auditor.py",
             "timeout": 10,
             "comment": "Confidence Calibration System - Rubric Audit"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/drift-detector.py",
+            "timeout": 5,
+            "comment": "Drift Prevention - Semgrep Architecture Validation"
           }
         ]
       },

@@ -1,0 +1,124 @@
+rules:
+  # ============================================================================
+  # ARCHITECTURE RULES - Language-Agnostic Patterns
+  # These rules enforce high-level architectural constraints
+  # ============================================================================
+
+  # ARCHITECTURE: No backend frameworks in frontend/client-side projects
+  - id: no-backend-frameworks
+    mode: search
+    languages: [javascript, typescript, python, go, rust, java, ruby]
+    pattern-either:
+      # JavaScript/TypeScript backends
+      - pattern: import ... from 'express'
+      - pattern: import ... from 'koa'
+      - pattern: import ... from 'fastify'
+      - pattern: require('express')
+      - pattern: require('koa')
+
+      # Python backends
+      - pattern: import flask
+      - pattern: from flask import ...
+      - pattern: import django
+      - pattern: from django import ...
+      - pattern: import fastapi
+      - pattern: from fastapi import ...
+
+      # Go backends
+      - pattern: import "github.com/gin-gonic/gin"
+      - pattern: import "github.com/gorilla/mux"
+
+      # Rust backends
+      - pattern: use actix_web
+      - pattern: use rocket
+
+      # Ruby backends
+      - pattern: require 'sinatra'
+      - pattern: require 'rails'
+
+    message: |
+      Backend framework detected in client-side project.
+
+      ⚠️ **Architecture Violation**: This appears to be a client-side project.
+
+      💡 **Check your ADR**: Does your architecture document allow backend code?
+      📖 **Review**: docs/ADR.md or .claude/drift/rejected.yaml
+
+      If this is intentional, update your architectural decision records first.
+
+    severity: ERROR
+    metadata:
+      category: architecture
+      confidence: high
+      portable: true
+
+  # ARCHITECTURE: Database imports in frontend code
+  - id: no-database-in-frontend
+    mode: search
+    languages: [javascript, typescript, python, java]
+    pattern-either:
+      # SQL databases
+      - pattern: import ... from 'mysql'
+      - pattern: import ... from 'pg'
+      - pattern: import ... from 'sqlite3'
+      - pattern: from sqlalchemy import ...
+      - pattern: import java.sql
+
+      # NoSQL databases
+      - pattern: import ... from 'mongodb'
+      - pattern: import ... from 'mongoose'
+      - pattern: from pymongo import ...
+
+    paths:
+      include:
+        - "**/components/**"
+        - "**/pages/**"
+        - "**/app/**"
+        - "**/src/client/**"
+      exclude:
+        - "**/server/**"
+        - "**/api/**"
+        - "**/backend/**"
+
+    message: |
+      Database import detected in frontend code.
+
+      ⚠️ **Architecture Violation**: Frontend code should not directly access databases.
+
+      💡 **Best Practice**: Use API endpoints or backend services instead.
+      📖 **Pattern**: Frontend → API → Database (never Frontend → Database)
+
+    severity: ERROR
+    metadata:
+      category: architecture
+      confidence: high
+
+  # ARCHITECTURE: Layering violations (components importing from app/)
+  - id: enforce-layer-boundaries
+    mode: search
+    languages: [javascript, typescript]
+    patterns:
+      - pattern: import ... from '$APP'
+      - metavariable-regex:
+          metavariable: $APP
+          regex: '^(\.\.\/)*app\/'
+    paths:
+      include:
+        - "**/components/**"
+        - "**/lib/**"
+    message: |
+      Layer boundary violation: components/lib importing from app/.
+
+      ⚠️ **Architecture**: Lower layers should not depend on higher layers.
+
+      💡 **Allowed imports**:
+         - components/ → lib/, hooks/
+         - lib/ → (no upward dependencies)
+         - app/ → components/, lib/, hooks/
+
+      📖 **Pattern**: Dependency Inversion Principle
+
+    severity: WARNING
+    metadata:
+      category: architecture
+      customizable: true

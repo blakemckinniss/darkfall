@@ -78,18 +78,54 @@ EOF
     fi
 fi
 
+# Helper function: Determine if Zen MCP should be used
+should_use_zen_mcp() {
+    local task_class="$1"
+    local prompt="$2"
+
+    # Always use for open_world (research tasks)
+    if [ "$task_class" = "open_world" ]; then
+        return 0
+    fi
+
+    # Use for high-risk risky tasks (production keywords)
+    if [ "$task_class" = "risky" ]; then
+        # Check for high-severity keywords
+        if echo "$prompt" | grep -qiE '\b(production|prod|deploy|migration|database.*drop|irreversible|payment)\b'; then
+            return 0  # High risk
+        fi
+        return 1  # Low risk - use Tier-1.5
+    fi
+
+    return 1  # routine, complex use local patterns
+}
+
 # Generate tool plan based on task class
 case "$TASK_CLASS" in
     routine|complex)
-        # Tier-1: Fast pattern matching (2-7s)
+        # Tier-1/1.5: Fast pattern matching (2-7s)
         TOOL_PLAN=$(python3 "$HOOK_DIR/lib/quick_tool_planner.py" "$TASK_CLASS" "$PROMPT" 2>/dev/null || echo "")
         ;;
 
     risky|open_world)
-        # Phase 1: Use fast pattern matching
-        # Phase 2 (future): Call Zen MCP planner with 15s timeout
-        # timeout 15s python3 "$HOOK_DIR/lib/zen_tool_planner.py" "$TASK_CLASS" "$PROMPT" || fallback
-        TOOL_PLAN=$(python3 "$HOOK_DIR/lib/quick_tool_planner.py" "$TASK_CLASS" "$PROMPT" 2>/dev/null || echo "")
+        # Phase 2: Determine escalation to Zen MCP
+        if should_use_zen_mcp "$TASK_CLASS" "$PROMPT"; then
+            # Tier-2: Zen MCP deep planning (< 15s with fallback)
+
+            # Gather project context (lightweight, < 500ms)
+            CONTEXT=$("$HOOK_DIR/lib/context_gatherer.sh" 2>/dev/null || echo '{}')
+
+            # Try Zen MCP with 12s timeout
+            TOOL_PLAN=$(timeout 12s python3 "$HOOK_DIR/lib/zen_tool_planner.py" "$TASK_CLASS" "$PROMPT" <<< "$CONTEXT" 2>/dev/null || echo "")
+
+            # Fallback to Tier-1.5 if Zen failed or timed out
+            if [ -z "$TOOL_PLAN" ]; then
+                TOOL_PLAN=$(python3 "$HOOK_DIR/lib/quick_tool_planner.py" "$TASK_CLASS" "$PROMPT" 2>/dev/null || echo "")
+            fi
+        else
+            # Tier-1.5: Enhanced patterns (no Zen MCP needed)
+            TOOL_PLAN=$(python3 "$HOOK_DIR/lib/quick_tool_planner.py" "$TASK_CLASS" "$PROMPT" 2>/dev/null || echo "")
+        fi
 
         # Add warning for risky tasks
         if [ "$TASK_CLASS" = "risky" ]; then

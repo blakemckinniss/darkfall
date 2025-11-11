@@ -1302,3 +1302,376 @@ chmod +x /path/to/other/project/.claude/hooks/*.sh
 ```
 
 ---
+
+---
+
+## Tool Planning Hook - Phase 1.5 & 2 (Enhanced Patterns + Zen MCP Infrastructure)
+
+**Status:** Phase 1.5 Deployed, Phase 2 Infrastructure Ready  
+**Date:** 2025-11-11
+
+### Overview
+
+The tool planning system has been upgraded from basic pattern matching (Phase 1 MVP) to a **three-tier graduated escalation system** that provides production-grade optimization recommendations.
+
+### Three-Tier Architecture
+
+```
+USER PROMPT → [Tier-0: Classifier] → atomic (SKIP)
+                                    → routine (Tier-1: 3s)
+                                    → complex (Tier-1.5: 5s)
+                                    → risky → Escalation Decision
+                                    |           → High risk: Tier-2 (15s) → [fallback] Tier-1.5
+                                    |           → Low risk: Tier-1.5 (5s)
+                                    → open_world → Tier-2 (15s) → [fallback] Tier-1.5
+```
+
+**Tier-1**: Basic patterns (parallelization, scripts, MCP tools, agents)  
+**Tier-1.5**: Enhanced patterns (API, database, security, state, error handling)  
+**Tier-2**: Zen MCP deep planning (safety, research, strategic analysis)
+
+### Phase 1.5: Enhanced Pattern Detection
+
+**New Patterns (19 total):**
+
+**API Optimization (4 patterns):**
+1. 🌐 Rate limiting detection
+2. 🌐 Batch request opportunities
+3. 🌐 Caching recommendations
+4. 🌐 Retry logic for external APIs
+
+**Database Optimization (4 patterns):**
+1. 🗄️ N+1 query detection
+2. 🗄️ Transaction safety
+3. 🗄️ Bulk operation suggestions
+4. 🗄️ Index awareness
+
+**Security (5 patterns):**
+1. 🔒 Auth/authorization audit recommendations
+2. 🔒 Input validation requirements
+3. 🔒 Credential management
+4. 🔒 SQL injection prevention
+5. 🔒 XSS prevention
+
+**State Management (3 patterns):**
+1. 📊 Atomic state updates
+2. 📊 Concurrency control
+3. 📊 Rollback strategies
+
+**Error Handling (3 patterns):**
+1. 🛡️ External operation resilience
+2. 🛡️ Retry logic with exponential backoff
+3. 🛡️ Fallback behavior for critical paths
+
+**Files:**
+- `.claude/hooks/lib/enhanced_patterns.py` (370 lines, 5 detection functions)
+- `.claude/hooks/lib/quick_tool_planner.py` (updated with Tier-1.5 integration)
+- `.claude/hooks/tests/test_enhanced_patterns.py` (23 unit tests, 100% pass)
+
+**Performance:**
+- Complex tasks: ~3-4s (target: < 5s) ✅
+- Risky tasks: ~3-4s (target: < 5s) ✅
+- 7 recommendations max (sorted by confidence boost)
+
+### Phase 2: Zen MCP Infrastructure
+
+**Purpose:** Deep strategic planning for high-risk and research tasks
+
+**Escalation Logic:**
+```bash
+# Always use Zen MCP for research
+open_world → Tier-2
+
+# Use Zen MCP for high-severity risky tasks
+risky + (production|deploy|migration|database drop|payment) → Tier-2
+risky (other) → Tier-1.5
+```
+
+**Components:**
+
+**Context Gatherer** (`lib/context_gatherer.sh`):
+- Lightweight project detection (< 500ms)
+- Auto-detects: Node.js, Python, Go, Rust, Ruby, Java
+- Gathers: project type, package manager, file counts, git status
+- Runs in parallel for speed
+
+**Zen Tool Planner** (`lib/zen_tool_planner.py`):
+- Invokes `mcp__zen__planner` with structured prompt
+- 12s timeout with graceful fallback to Tier-1.5
+- 15-minute cache (separate from Tier-1 cache)
+- Currently: Placeholder implementation (returns None → triggers fallback)
+
+**Escalation in tool-planner.sh:**
+- `should_use_zen_mcp()` function determines escalation
+- Gathers context, invokes Zen MCP, falls back on failure
+- Adds risky task warning footer
+
+**Current Status:**
+- ✅ Infrastructure fully implemented
+- 🟡 Placeholder MCP integration (ready for production when needed)
+- ✅ Fallback to Tier-1.5 tested and working
+
+**Example Output (Tier-2 fallback):**
+```
+## 🛠️ Tool Strategy (Auto-Generated)
+
+**Task Class:** risky | **Planning Tier:** 1.5 (enhanced patterns - API/DB/Security)
+
+**Recommended Optimizations:**
+1. 🗄️ **Database Optimization**: N+1 query pattern detected...
+2. 🌐 **Api Optimization**: Loop + API call detected...
+3. 🔒 **Security**: Authentication code - recommend zen:codereview...
+
+**Estimated Time Savings:** ~490s
+**Confidence Boost:** +0.67 (via tooling_optimization_score)
+
+⚠️ **RISKY TASK**: Consider creating backup or dry-run strategy before proceeding.
+```
+
+### Testing
+
+**Unit Tests:**
+```bash
+# Run Phase 1.5 enhanced pattern tests
+python3 ./.claude/hooks/tests/test_enhanced_patterns.py
+# Result: 23/23 tests passed ✅
+```
+
+**Integration Tests:**
+```bash
+# Test Tier-1.5 (complex task with security)
+echo '{"prompt": "Implement user authentication with password validation"}' | \
+  ./.claude/hooks/tool-planner.sh
+
+# Test escalation (high-risk risky)
+echo '{"prompt": "Deploy to production and migrate database"}' | \
+  ./.claude/hooks/tool-planner.sh
+
+# Test N+1 query detection
+echo '{"prompt": "Loop through users and fetch posts from API then update database"}' | \
+  ./.claude/hooks/tool-planner.sh
+```
+
+### Performance Metrics
+
+| Tier | Task Class | Target | Actual | Status |
+|------|-----------|--------|--------|--------|
+| 0 | All | < 50ms | ~30ms | ✅ Met |
+| 1 | Routine | < 3s | ~2s | ✅ Met |
+| 1.5 | Complex, Risky (low) | < 5s | ~3-4s | ✅ Met |
+| 2 | Risky (high), Open World | < 15s | N/A | 🟡 Ready |
+
+### Disabling/Rollback
+
+**Disable Tier-1.5 (revert to Tier-1):**
+```bash
+# Remove enhanced_patterns.py
+rm .claude/hooks/lib/enhanced_patterns.py
+# System automatically falls back to Tier-1
+```
+
+**Disable Tier-2 (revert to Tier-1.5 max):**
+```bash
+# Edit tool-planner.sh: should_use_zen_mcp()
+# Change all return 0 to return 1
+```
+
+**Complete Rollback to Phase 1 MVP:**
+```bash
+git revert <phase-1.5-commit>
+```
+
+### Future: Phase 3 (Learning Loop)
+
+**Not Yet Implemented** - Planned features:
+
+1. **Outcome Logging**
+   - Track which tools were actually used
+   - Log to `.claude/tool_planning_outcomes.jsonl`
+   - Calculate plan adherence (Jaccard similarity)
+
+2. **Weekly Analysis**
+   - Pattern effectiveness (success rate per pattern)
+   - Time estimate accuracy
+   - Confidence boost correlation
+
+3. **Feedback Loop**
+   - Adjust pattern weights based on outcomes
+   - Suppress ineffective patterns (< 30% success)
+   - Generate few-shot examples for Zen MCP
+   - Update `.claude/tool_plan_config.json`
+
+**Implementation Timeline:** Week 6-8 (per original plan)
+
+### Documentation
+
+- **ADR-TP002**: Complete architecture documentation in `docs/ADR.md`
+- **Implementation Plan**: Comprehensive 8-week rollout plan (see previous conversation)
+- **Test Coverage**: 23 unit tests with 100% pass rate
+
+### Monitoring
+
+Watch for these patterns over 2-4 weeks:
+- Pattern relevance (false positive rate)
+- Suggestion usefulness (qualitative feedback)
+- Performance overhead (hook execution time)
+- Fallback frequency (Tier-2 → Tier-1.5)
+
+### Related Hooks
+
+- **confidence-classifier.sh**: Provides task classification for Tier-0
+- **posttooluse-metacognition.py**: Future integration point for outcome tracking (Phase 3)
+
+
+---
+
+## Zen MCP Integration - Production Implementation (2025-11-11)
+
+**Status:** ✅ Production Ready (CLI-based subprocess invocation)
+
+The Zen MCP placeholder has been replaced with a production-ready implementation using the Claude CLI.
+
+### Implementation Method
+
+**Architecture:** Subprocess-based MCP invocation via `claude` CLI
+
+```python
+# Command: claude tool mcp__zen__planner -i -
+command = ["claude", "tool", "mcp__zen__planner", "-i", "-"]
+
+result = subprocess.run(
+    command,
+    input=zen_prompt_json,  # JSON via stdin
+    capture_output=True,
+    text=True,
+    timeout=12,
+    check=True  # Raises CalledProcessError on failure
+)
+```
+
+**Why This Approach:**
+- Stable, public `claude` CLI interface (recommended pattern per Zen MCP research)
+- Automatic authentication handling
+- Insulated from MCP protocol changes
+- No manual HTTP/IPC or token management
+
+### Input Schema
+
+Zen MCP planner expects JSON via stdin:
+
+```json
+{
+  "step": "planning prompt with context and requirements",
+  "step_number": 1,
+  "total_steps": 1,
+  "next_step_required": false,
+  "findings": "Tool planning for risky task",
+  "model": "google/gemini-2.5-pro"
+}
+```
+
+### Error Handling & Fallback
+
+**Four Failure Modes:**
+1. `FileNotFoundError` - Claude CLI not in PATH → Fallback to Tier-1.5
+2. `TimeoutExpired` - 12s timeout exceeded → Fallback to Tier-1.5
+3. `CalledProcessError` - Tool execution failed → Fallback to Tier-1.5
+4. Generic exceptions → Fallback to Tier-1.5
+
+All errors logged to stderr (doesn't interfere with hook JSON output)
+
+### Testing
+
+**Unit Test (JSON structure):**
+```bash
+python3 -c "
+from zen_tool_planner import build_zen_prompt
+result = build_zen_prompt('Deploy to production', 'risky', {'project_type': 'nodejs'})
+import json
+parsed = json.loads(result)  # Validates JSON structure
+print('Keys:', list(parsed.keys()))
+"
+# Output: Keys: ['step', 'step_number', 'total_steps', 'next_step_required', 'findings', 'model']
+```
+
+**Integration Test (requires claude CLI):**
+```bash
+# High-risk task should trigger Zen MCP
+echo '{"prompt": "Deploy to production and migrate database"}' | \
+  ./.claude/hooks/tool-planner.sh
+
+# Expected behavior:
+# 1. Detects "production" + "migration" → should_use_zen_mcp() = true
+# 2. Attempts: claude tool mcp__zen__planner -i -
+# 3. If CLI available: Returns Tier-2 Zen MCP analysis
+# 4. If CLI unavailable: Falls back to Tier-1.5 enhanced patterns
+```
+
+### Deployment Requirements
+
+**Required:**
+- `claude` CLI must be in PATH during hook execution
+- Hooks run in subprocess - ensure PATH includes CLI location
+
+**Optional:**
+- stderr logging for debugging (automatically enabled)
+
+**Verification:**
+```bash
+# Check if claude CLI available
+which claude
+# Should return: /path/to/claude
+
+# Test basic CLI invocation
+echo '{"step": "test", "step_number": 1, "total_steps": 1, "next_step_required": false, "findings": "test", "model": "google/gemini-2.5-pro"}' | \
+  claude tool mcp__zen__planner -i -
+# Should return: Zen MCP analysis or error
+```
+
+### Monitoring
+
+**Log Location:** stderr (doesn't interfere with hook JSON output)
+
+**Log Format:**
+```
+2025-11-11 06:30:00 - zen_planner - INFO - Invoking Zen MCP planner (timeout: 12s)
+2025-11-11 06:30:05 - zen_planner - INFO - Zen MCP planner call successful
+```
+
+**Failure Scenarios:**
+```
+# CLI not found
+2025-11-11 06:30:00 - zen_planner - ERROR - Claude CLI not found. Ensure 'claude' command is in PATH. Falling back to Tier-1.5.
+
+# Timeout
+2025-11-11 06:30:12 - zen_planner - WARNING - Zen MCP planner timed out after 12s. Falling back to Tier-1.5.
+
+# Tool failure
+2025-11-11 06:30:05 - zen_planner - ERROR - Zen MCP planner failed with exit code 1. Stderr: [error details]
+```
+
+### Performance
+
+**Tier-2 Budget:** < 15s total
+- Context gathering: ~500ms
+- Zen MCP invocation: 12s timeout
+- Parsing/formatting: ~500ms
+- **Total:** ~13s (within budget)
+
+**Fallback Performance:**
+- Tier-1.5: ~3-4s (if Zen MCP fails)
+- No user-facing delay on fallback
+
+### Production Readiness
+
+- ✅ CLI-based subprocess invocation
+- ✅ JSON schema validated
+- ✅ Timeout enforcement (12s)
+- ✅ Comprehensive error handling
+- ✅ Graceful fallback
+- ✅ Logging for debugging
+- ✅ No hardcoded credentials
+- ✅ Compatible with hook environment
+
+**Status:** Ready for production when `claude` CLI is available in hook PATH.
+

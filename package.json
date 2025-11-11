@@ -11,6 +11,13 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:performance": "playwright test ai-performance",
+    "test:e2e:integration": "playwright test ai-integration",
+    "test:e2e:report": "playwright show-report",
     "type-coverage": "type-coverage --detail --strict --at-least 95"
   },
   "dependencies": {
@@ -69,8 +76,9 @@
     "zod": "3.25.76"
   },
   "devDependencies": {
-    "@eslint/js": "^9.38.0",
+    "@eslint/js": "^9.39.1",
     "@next/eslint-plugin-next": "^16.0.1",
+    "@playwright/test": "^1.56.1",
     "@tailwindcss/postcss": "^4.1.9",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
@@ -82,7 +90,8 @@
     "@typescript-eslint/parser": "^8.46.2",
     "@vitejs/plugin-react": "^5.1.0",
     "@vitest/coverage-v8": "^4.0.6",
-    "eslint": "^9.38.0",
+    "dependency-cruiser": "^17.2.0",
+    "eslint": "^9.39.1",
     "eslint-config-next": "^16.0.1",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",

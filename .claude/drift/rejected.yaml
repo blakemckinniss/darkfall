@@ -1,0 +1,103 @@
+rules:
+  # ============================================================================
+  # PROJECT-SPECIFIC REJECTED APPROACHES
+  # Based on Architecture Decision Records (ADR)
+  # ============================================================================
+
+  # ADR-001: Enforce State Management Abstraction
+  - id: enforce-game-state-usage-adr001
+    mode: search
+    languages: [javascript, typescript]
+    pattern-either:
+      - pattern: localStorage.setItem(...)
+      - pattern: localStorage.getItem(...)
+      - pattern: localStorage.removeItem(...)
+      - pattern: localStorage.clear()
+    paths:
+      exclude:
+        - "**/lib/game-state.ts"
+    message: |
+      Direct localStorage access detected.
+
+      📖 **ADR-001: Client-Side Only State Management**
+      ✅ **Use Instead**: loadGameState(), saveGameState(), clearGameState()
+
+      **Rationale**:
+        - Type safety via GameState schema
+        - Centralized validation
+        - Migration handling
+
+      See: lib/game-state.ts
+
+    severity: WARNING
+    metadata:
+      adr_reference: "ADR-001"
+
+  # ADR-003: External AI APIs Only - Hugging Face Transformers
+  - id: external-ai-only-huggingface
+    languages: [generic]
+    pattern-regex: '(import\s+.*\s+from\s+[''"]@huggingface/transformers[''"]|require\([''"]@huggingface/transformers[''"])'
+    paths:
+      include:
+        - "*.ts"
+        - "*.tsx"
+        - "*.js"
+        - "*.jsx"
+    message: |
+      Local AI model import detected (Hugging Face Transformers).
+
+      📖 **ADR-003: AI Integration via External APIs**
+      ❌ **Rejected**: Self-hosted AI models
+      ✅ **Allowed**: fal.ai, Groq
+
+      See: docs/ADR.md#adr-003
+
+    severity: ERROR
+    metadata:
+      adr_reference: "ADR-003"
+
+  # ADR-003: External AI APIs Only - TensorFlow
+  - id: external-ai-only-tensorflow
+    languages: [generic]
+    pattern-regex: '(import\s+.*\s+from\s+[''"]tensorflow[''"]|require\([''"]tensorflow[''"])'
+    paths:
+      include:
+        - "*.ts"
+        - "*.tsx"
+        - "*.js"
+        - "*.jsx"
+    message: |
+      Local AI model import detected (TensorFlow).
+
+      📖 **ADR-003: AI Integration via External APIs**
+      ❌ **Rejected**: Self-hosted AI models
+      ✅ **Allowed**: fal.ai, Groq
+
+      See: docs/ADR.md#adr-003
+
+    severity: ERROR
+    metadata:
+      adr_reference: "ADR-003"
+
+  # ADR-003: External AI APIs Only - PyTorch (torch)
+  - id: external-ai-only-torch
+    languages: [generic]
+    pattern-regex: '(import\s+.*\s+from\s+[''"]torch[''"]|require\([''"]torch[''"])'
+    paths:
+      include:
+        - "*.ts"
+        - "*.tsx"
+        - "*.js"
+        - "*.jsx"
+    message: |
+      Local AI model import detected (PyTorch).
+
+      📖 **ADR-003: AI Integration via External APIs**
+      ❌ **Rejected**: Self-hosted AI models
+      ✅ **Allowed**: fal.ai, Groq
+
+      See: docs/ADR.md#adr-003
+
+    severity: ERROR
+    metadata:
+      adr_reference: "ADR-003"

@@ -1,0 +1,169 @@
+rules:
+  # ============================================================================
+  # ANTI-PATTERN DETECTION - Language-Agnostic Code Quality
+  # These rules catch common anti-patterns across any language
+  # ============================================================================
+
+  # ANTI-PATTERN: Magic numbers (large numeric literals)
+  - id: magic-numbers-detected
+    mode: regex
+    languages: [generic]
+    pattern-regex: '\b([0-9]{3,}|0x[0-9A-Fa-f]{3,})\b(?!.*\b(const|final|static|readonly|#define|CONST)\b)'
+    paths:
+      exclude:
+        - "**/*test*"
+        - "**/*spec*"
+        - "**/migrations/**"
+    message: |
+      Large numeric literal detected (magic number).
+
+      💡 **Best Practice**: Extract to named constant for readability.
+
+      Example:
+        ❌ if (timeout > 5000)
+        ✅ const REQUEST_TIMEOUT_MS = 5000; if (timeout > REQUEST_TIMEOUT_MS)
+
+    severity: INFO
+    metadata:
+      category: code-quality
+      fix: "Extract to named constant"
+
+  # ANTI-PATTERN: TODO/FIXME accumulation
+  - id: todo-debt-tracking
+    mode: regex
+    languages: [generic]
+    pattern-regex: '(TODO|FIXME|HACK|XXX|BUG):'
+    message: |
+      Technical debt marker detected.
+
+      ⚠️ **Reminder**: Track in docs/NOTES.md or create GitHub issue
+
+      💡 **Best Practice**: Don't let TODOs accumulate without tracking
+
+    severity: INFO
+    metadata:
+      category: technical-debt
+
+  # ANTI-PATTERN: Commented-out code blocks
+  - id: commented-code-blocks
+    mode: regex
+    languages: [generic]
+    pattern-regex: '^\s*(//|#|/\*)\s*(function|def|class|const|let|var|export|import)\s+\w+'
+    message: |
+      Commented-out code detected.
+
+      ⚠️ **Code Smell**: Dead code should be deleted, not commented.
+
+      💡 **Rationale**: Git history preserves old code - no need to comment it out
+
+    severity: INFO
+    metadata:
+      category: code-quality
+
+  # ANTI-PATTERN: Console.log in production code
+  - id: no-console-log-production
+    mode: search
+    languages: [javascript, typescript]
+    pattern-either:
+      - pattern: console.log(...)
+      - pattern: console.debug(...)
+      - pattern: console.info(...)
+    paths:
+      exclude:
+        - "**/*test*"
+        - "**/*spec*"
+        - "**/dev/**"
+        - "**/scripts/**"
+    message: |
+      console.log detected in production code.
+
+      💡 **Best Practice**: Use proper logging library or remove before commit
+
+      Consider:
+        - Use a logging library with levels (debug, info, warn, error)
+        - Remove debugging console.logs before committing
+        - Keep console.error for actual error handling
+
+    severity: WARNING
+    metadata:
+      category: code-quality
+
+  # ANTI-PATTERN: Direct localStorage access (when state abstraction exists)
+  - id: enforce-state-abstraction
+    mode: search
+    languages: [javascript, typescript]
+    pattern-either:
+      - pattern: localStorage.setItem(...)
+      - pattern: localStorage.getItem(...)
+      - pattern: localStorage.removeItem(...)
+      - pattern: localStorage.clear()
+    paths:
+      exclude:
+        # Exclude state management files themselves
+        - "**/game-state.ts"
+        - "**/lib/state*.ts"
+        - "**/state-manager.ts"
+        - "**/storage.ts"
+    message: |
+      Direct localStorage access detected.
+
+      💡 **Pattern**: Use state management abstraction layer
+
+      Example:
+        ❌ localStorage.setItem('user', JSON.stringify(user))
+        ✅ saveGameState({ user })  // Use your state manager
+
+      📖 **Rationale**: Centralized state management enables:
+         - Type safety
+         - Validation
+         - Migration handling
+         - Easier testing
+
+    severity: WARNING
+    metadata:
+      category: patterns
+      customizable: true
+
+  # ANTI-PATTERN: Hardcoded URLs and credentials
+  - id: no-hardcoded-secrets
+    mode: regex
+    languages: [generic]
+    pattern-regex: '(api_key|apikey|password|secret|token)\s*[:=]\s*["\'][^"\']+["\']'
+    paths:
+      exclude:
+        - "**/*test*"
+        - "**/*spec*"
+        - "**/*mock*"
+        - "**/example*"
+    message: |
+      Hardcoded credential detected.
+
+      🔒 **Security**: Never hardcode secrets in source code.
+
+      💡 **Use instead**:
+         - Environment variables (.env files)
+         - Secrets management (AWS Secrets Manager, etc.)
+         - Config files (.gitignored)
+
+    severity: ERROR
+    metadata:
+      category: security
+
+  # ANTI-PATTERN: Multiple return statements (complexity)
+  - id: multiple-returns-complexity
+    mode: regex
+    languages: [javascript, typescript, python, go]
+    pattern-regex: '(function|def)\s+\w+[^{]*{[^}]*return[^}]*return[^}]*return'
+    message: |
+      Multiple return statements detected (3+).
+
+      💡 **Consider**: Simplifying function logic or extracting methods
+
+      ⚠️ **Code Smell**: Many returns can indicate:
+         - Function doing too much
+         - Complex branching logic
+         - Missing early validation pattern
+
+    severity: INFO
+    metadata:
+      category: code-quality

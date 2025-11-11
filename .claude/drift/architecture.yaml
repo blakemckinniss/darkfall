@@ -1,0 +1,190 @@
+rules:
+  # ============================================================================
+  # ARCHITECTURE RULES - Working Patterns
+  # ============================================================================
+
+  # ARCHITECTURE: No backend frameworks (JavaScript/TypeScript)
+  - id: no-backend-frameworks-express
+    languages: [generic]
+    pattern-regex: '(import\s+.*\s+from\s+[''"]express[''"]|require\([''"]express[''"])'
+    paths:
+      include:
+        - "*.ts"
+        - "*.tsx"
+        - "*.js"
+        - "*.jsx"
+    message: |
+      Backend framework detected (express).
+
+      📖 **ADR-001: Client-Side Only Architecture**
+      ❌ **Rejected**: Backend frameworks
+      ✅ **Allowed**: External API calls, localStorage
+
+      See: docs/ADR.md#adr-001
+
+    severity: ERROR
+    metadata:
+      category: architecture
+      adr_reference: "ADR-001"
+
+  - id: no-backend-frameworks-koa
+    languages: [generic]
+    pattern-regex: '(import\s+.*\s+from\s+[''"]koa[''"]|require\([''"]koa[''"])'
+    paths:
+      include:
+        - "*.ts"
+        - "*.tsx"
+        - "*.js"
+        - "*.jsx"
+    message: |
+      Backend framework detected (koa).
+
+      📖 **ADR-001: Client-Side Only Architecture**
+      ❌ **Rejected**: Backend frameworks
+      ✅ **Allowed**: External API calls, localStorage
+
+      See: docs/ADR.md#adr-001
+
+    severity: ERROR
+    metadata:
+      category: architecture
+      adr_reference: "ADR-001"
+
+  - id: no-backend-frameworks-fastify
+    languages: [generic]
+    pattern-regex: '(import\s+.*\s+from\s+[''"]fastify[''"]|require\([''"]fastify[''"])'
+    paths:
+      include:
+        - "*.ts"
+        - "*.tsx"
+        - "*.js"
+        - "*.jsx"
+    message: |
+      Backend framework detected (fastify).
+
+      📖 **ADR-001: Client-Side Only Architecture**
+      ❌ **Rejected**: Backend frameworks
+      ✅ **Allowed**: External API calls, localStorage
+
+      See: docs/ADR.md#adr-001
+
+    severity: ERROR
+    metadata:
+      category: architecture
+      adr_reference: "ADR-001"
+
+  # ARCHITECTURE: No database libraries
+  - id: no-database-mysql
+    languages: [generic]
+    pattern-regex: '(import\s+.*\s+from\s+[''"]mysql2?[''"]|require\([''"]mysql2?[''"])'
+    paths:
+      include:
+        - "*.ts"
+        - "*.tsx"
+        - "*.js"
+        - "*.jsx"
+    message: |
+      Database library detected (mysql).
+
+      📖 **ADR-001: Client-Side Only Architecture**
+      ❌ **Rejected**: Direct database access
+      ✅ **Allowed**: localStorage, external APIs
+
+      See: docs/ADR.md#adr-001
+
+    severity: ERROR
+    metadata:
+      category: architecture
+      adr_reference: "ADR-001"
+
+  - id: no-database-pg
+    languages: [generic]
+    pattern-regex: '(import\s+.*\s+from\s+[''"]pg[''"]|require\([''"]pg[''"])'
+    paths:
+      include:
+        - "*.ts"
+        - "*.tsx"
+        - "*.js"
+        - "*.jsx"
+    message: |
+      Database library detected (PostgreSQL).
+
+      📖 **ADR-001: Client-Side Only Architecture**
+      ❌ **Rejected**: Direct database access
+      ✅ **Allowed**: localStorage, external APIs
+
+      See: docs/ADR.md#adr-001
+
+    severity: ERROR
+    metadata:
+      category: architecture
+      adr_reference: "ADR-001"
+
+  - id: no-database-mongodb
+    languages: [generic]
+    pattern-regex: '(import\s+.*\s+from\s+[''"]mongodb[''"]|require\([''"]mongodb[''"])'
+    paths:
+      include:
+        - "*.ts"
+        - "*.tsx"
+        - "*.js"
+        - "*.jsx"
+    message: |
+      Database library detected (MongoDB).
+
+      📖 **ADR-001: Client-Side Only Architecture**
+      ❌ **Rejected**: Direct database access
+      ✅ **Allowed**: localStorage, external APIs
+
+      See: docs/ADR.md#adr-001
+
+    severity: ERROR
+    metadata:
+      category: architecture
+      adr_reference: "ADR-001"
+
+  - id: no-database-mongoose
+    languages: [generic]
+    pattern-regex: '(import\s+.*\s+from\s+[''"]mongoose[''"]|require\([''"]mongoose[''"])'
+    paths:
+      include:
+        - "*.ts"
+        - "*.tsx"
+        - "*.js"
+        - "*.jsx"
+    message: |
+      Database library detected (Mongoose ORM).
+
+      📖 **ADR-001: Client-Side Only Architecture**
+      ❌ **Rejected**: Direct database access
+      ✅ **Allowed**: localStorage, external APIs
+
+      See: docs/ADR.md#adr-001
+
+    severity: ERROR
+    metadata:
+      category: architecture
+      adr_reference: "ADR-001"
+
+  - id: no-database-sqlite3
+    languages: [generic]
+    pattern-regex: '(import\s+.*\s+from\s+[''"]sqlite3?[''"]|require\([''"]sqlite3?[''"])'
+    paths:
+      include:
+        - "*.ts"
+        - "*.tsx"
+        - "*.js"
+        - "*.jsx"
+    message: |
+      Database library detected (SQLite3).
+
+      📖 **ADR-001: Client-Side Only Architecture**
+      ❌ **Rejected**: Direct database access
+      ✅ **Allowed**: localStorage, external APIs
+
+      See: docs/ADR.md#adr-001
+
+    severity: ERROR
+    metadata:
+      category: architecture
+      adr_reference: "ADR-001"

@@ -1,0 +1,149 @@
+# ============================================================================
+# REJECTED APPROACHES - Project-Specific ADR Enforcement
+# ============================================================================
+#
+# This file should be customized for YOUR project's architectural decisions.
+# Reference your ADR.md (Architecture Decision Records) here.
+#
+# INSTRUCTIONS:
+# 1. Copy this template to .claude/drift/rejected.yaml
+# 2. Uncomment and customize examples below
+# 3. Add new rules for each rejected approach in your ADR.md
+#
+# ============================================================================
+
+rules:
+  # Example 1: State Management Choice
+  # ----------------------------------------------------------------------------
+  # Uncomment if your project rejected Redux in favor of simpler state management
+  #
+  # - id: no-redux-in-this-project
+  #   mode: search
+  #   languages: [javascript, typescript]
+  #   pattern-either:
+  #     - pattern: import ... from 'react-redux'
+  #     - pattern: import ... from 'redux'
+  #     - pattern: import { createStore } from ...
+  #   message: |
+  #     Redux usage detected.
+  #
+  #     📖 **ADR-004**: This project uses Zustand for state management.
+  #     ❌ **Rejected**: Redux (reason: too complex for solo developer workflow)
+  #
+  #     See: docs/ADR.md#adr-004-state-management-with-zustand
+  #
+  #   severity: ERROR
+  #   metadata:
+  #     adr_reference: "ADR-004"
+
+  # Example 2: CSS Framework Choice
+  # ----------------------------------------------------------------------------
+  # Uncomment if your project rejected CSS-in-JS libraries
+  #
+  # - id: no-styled-components
+  #   mode: search
+  #   languages: [javascript, typescript]
+  #   pattern-either:
+  #     - pattern: import styled from 'styled-components'
+  #     - pattern: import ... from '@emotion/styled'
+  #   message: |
+  #     CSS-in-JS library detected.
+  #
+  #     📖 **ADR-007**: This project uses Tailwind CSS for styling.
+  #     ❌ **Rejected**: styled-components, Emotion (reason: standardize on utility-first CSS)
+  #
+  #     See: docs/ADR.md#adr-007-tailwind-css-for-styling
+  #
+  #   severity: ERROR
+  #   metadata:
+  #     adr_reference: "ADR-007"
+
+  # Example 3: Testing Framework Choice
+  # ----------------------------------------------------------------------------
+  # Uncomment if your project standardized on a specific testing framework
+  #
+  # - id: use-vitest-not-jest
+  #   mode: search
+  #   languages: [javascript, typescript]
+  #   pattern-either:
+  #     - pattern: import ... from 'jest'
+  #     - pattern: import { describe } from '@jest/globals'
+  #   message: |
+  #     Jest import detected.
+  #
+  #     📖 **ADR-009**: This project uses Vitest for testing.
+  #     ❌ **Rejected**: Jest (reason: Vitest has better Vite integration and faster execution)
+  #
+  #     See: docs/ADR.md#adr-009-vitest-for-testing
+  #
+  #   severity: WARNING
+  #   metadata:
+  #     adr_reference: "ADR-009"
+
+  # Example 4: Backend Architecture
+  # ----------------------------------------------------------------------------
+  # Uncomment if your project explicitly rejected backend/database (client-side only)
+  #
+  # - id: client-side-only-architecture
+  #   mode: search
+  #   languages: [javascript, typescript, python]
+  #   pattern-either:
+  #     - pattern: import ... from 'express'
+  #     - pattern: import ... from 'mysql'
+  #     - pattern: import ... from 'pg'
+  #     - pattern: from sqlalchemy import ...
+  #   message: |
+  #     Backend/database import detected.
+  #
+  #     📖 **ADR-001**: This is a client-side only application.
+  #     ❌ **Rejected**: Backend frameworks, databases (reason: simplicity, zero hosting costs)
+  #
+  #     💡 **Allowed**: External API calls, localStorage persistence
+  #
+  #     See: docs/ADR.md#adr-001-client-side-only
+  #
+  #   severity: ERROR
+  #   metadata:
+  #     adr_reference: "ADR-001"
+
+  # Example 5: API Client Choice
+  # ----------------------------------------------------------------------------
+  # Uncomment if your project standardized on fetch API
+  #
+  # - id: use-fetch-not-axios
+  #   mode: search
+  #   languages: [javascript, typescript]
+  #   pattern: import ... from 'axios'
+  #   message: |
+  #     Axios import detected.
+  #
+  #     📖 **ADR-012**: This project uses native fetch API.
+  #     ❌ **Rejected**: Axios (reason: reduce bundle size, native browser support sufficient)
+  #
+  #     See: docs/ADR.md#adr-012-use-fetch-api
+  #
+  #   severity: WARNING
+  #   metadata:
+  #     adr_reference: "ADR-012"
+
+  # ============================================================================
+  # ADD YOUR PROJECT'S REJECTED APPROACHES BELOW
+  # ============================================================================
+  #
+  # Template for new rules:
+  #
+  # - id: descriptive-rule-id
+  #   mode: search
+  #   languages: [list, of, languages]
+  #   pattern: the code pattern to detect
+  #   message: |
+  #     Clear explanation of what was detected.
+  #
+  #     📖 **ADR-XXX**: What your project decided instead
+  #     ❌ **Rejected**: What approach was rejected and why
+  #
+  #     See: docs/ADR.md#adr-xxx
+  #
+  #   severity: ERROR or WARNING
+  #   metadata:
+  #     adr_reference: "ADR-XXX"

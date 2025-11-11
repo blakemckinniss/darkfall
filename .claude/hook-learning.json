@@ -21,10 +21,10 @@
     "default_threshold": 4
   },
   "quality_debug_statements": {
-    "threshold": 8.20125,
+    "threshold": 12.301874999999999,
     "trigger_count": 5,
     "last_trigger": "2025-11-11T05:08:29.324297+00:00",
-    "cooldown_until": "2025-11-11T04:59:30.091406+00:00",
+    "cooldown_until": "2025-11-11T06:13:07.542315+00:00",
     "default_threshold": 3
   },
   "quality_tech_debt_markers": {
@@ -35,10 +35,10 @@
     "default_threshold": 5
   },
   "quality_magic_numbers": {
-    "threshold": 24.911296875,
-    "trigger_count": 5,
-    "last_trigger": "2025-11-11T04:00:13.937099+00:00",
-    "cooldown_until": "2025-11-11T05:00:28.181179+00:00",
+    "threshold": 37.3669453125,
+    "trigger_count": 8,
+    "last_trigger": "2025-11-11T06:34:36.147815+00:00",
+    "cooldown_until": "2025-11-11T07:34:36.147653+00:00",
     "default_threshold": 5
   },
   "perf_blocking_io": {
@@ -49,10 +49,10 @@
     "default_threshold": 1
   },
   "perf_repeated_calculation": {
-    "threshold": 1.5,
-    "trigger_count": 1,
-    "last_trigger": "2025-11-03T00:13:13.483050+00:00",
-    "cooldown_until": "2025-11-03T01:14:10.219236+00:00",
+    "threshold": 2.25,
+    "trigger_count": 3,
+    "last_trigger": "2025-11-11T06:33:41.611810+00:00",
+    "cooldown_until": "2025-11-11T07:33:42.876329+00:00",
     "default_threshold": 3
   },
   "perf_repeated_calculation_ops": {

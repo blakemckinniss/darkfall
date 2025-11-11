@@ -2,22 +2,31 @@
 """
 Tier-1 Fast Pattern Matcher for Tool Planning Hook
 Detects optimization opportunities using regex patterns.
-Target: < 100ms execution time
+Target: < 100ms execution time for routine
+Target: < 3s for complex (with enhanced patterns)
 """
 import re
 import sys
 from typing import List, Dict, Any
 
+# Import enhanced patterns for complex/risky tasks (Phase 1.5)
+try:
+    from enhanced_patterns import get_all_enhanced_patterns
+    ENHANCED_PATTERNS_AVAILABLE = True
+except ImportError:
+    ENHANCED_PATTERNS_AVAILABLE = False
+
 
 class ToolPlan:
     """Structured tool plan with metadata and recommendations"""
 
-    def __init__(self, task_class: str):
+    def __init__(self, task_class: str, tier: str = "1"):
         self.task_class = task_class
         self.optimizations: List[Dict[str, Any]] = []
         self.confidence_boost = 0.0
         self.estimated_time_savings = 0
-        self.planner = "local_v1.0"
+        self.tier = tier  # "1" = basic, "1.5" = enhanced
+        self.planner = f"local_v1.{tier}"
 
     def add_optimization(self, category: str, description: str, boost: float = 0.0, savings: int = 0):
         """Add an optimization suggestion"""
@@ -35,10 +44,15 @@ class ToolPlan:
         if not self.optimizations:
             return ""  # No plan needed
 
+        tier_desc = {
+            "1": "1 (local pattern matching)",
+            "1.5": "1.5 (enhanced patterns - API/DB/Security)"
+        }.get(self.tier, "1 (local pattern matching)")
+
         lines = [
             "## 🛠️ Tool Strategy (Auto-Generated)",
             "",
-            f"**Task Class:** {self.task_class} | **Planning Tier:** 1 (local pattern matching)",
+            f"**Task Class:** {self.task_class} | **Planning Tier:** {tier_desc}",
             "",
             "**Recommended Optimizations:**"
         ]
@@ -49,10 +63,15 @@ class ToolPlan:
                 "script": "📝",
                 "mcp_tool": "🔧",
                 "agent": "🤖",
-                "caching": "💾"
+                "caching": "💾",
+                "api_optimization": "🌐",
+                "database_optimization": "🗄️",
+                "security": "🔒",
+                "state_management": "📊",
+                "error_handling": "🛡️"
             }.get(opt["category"], "💡")
 
-            lines.append(f"{i}. {emoji} **{opt['category'].title()}**: {opt['description']}")
+            lines.append(f"{i}. {emoji} **{opt['category'].replace('_', ' ').title()}**: {opt['description']}")
 
         if self.estimated_time_savings > 0:
             lines.append(f"\n**Estimated Time Savings:** ~{self.estimated_time_savings}s")
@@ -213,21 +232,40 @@ def detect_agent_opportunities(prompt: str) -> List[Dict[str, Any]]:
 
 def create_tool_plan(prompt: str, task_class: str) -> ToolPlan:
     """Create comprehensive tool plan based on prompt analysis"""
-    plan = ToolPlan(task_class)
-
     # Skip planning for atomic tasks
     if task_class == "atomic":
-        return plan
+        return ToolPlan(task_class, tier="1")
 
-    # Detect all optimization opportunities
+    # Determine tier based on task class
+    use_enhanced_patterns = (
+        task_class in ["complex", "risky"] and
+        ENHANCED_PATTERNS_AVAILABLE
+    )
+
+    tier = "1.5" if use_enhanced_patterns else "1"
+    plan = ToolPlan(task_class, tier=tier)
+
+    # Collect all optimization opportunities
     optimizations = []
+
+    # Tier-1: Basic patterns (always run)
     optimizations.extend(detect_parallelization(prompt))
     optimizations.extend(detect_script_opportunities(prompt))
     optimizations.extend(detect_mcp_tool_opportunities(prompt, task_class))
     optimizations.extend(detect_agent_opportunities(prompt))
 
-    # Add top 5 optimizations (avoid overwhelming)
-    for opt in optimizations[:5]:
+    # Tier-1.5: Enhanced patterns (complex/risky only)
+    if use_enhanced_patterns:
+        enhanced = get_all_enhanced_patterns(prompt)
+        optimizations.extend(enhanced)
+
+    # Limit based on tier
+    max_suggestions = 7 if tier == "1.5" else 5
+
+    # Sort by boost (most impactful first) and take top N
+    optimizations.sort(key=lambda x: x.get("boost", 0), reverse=True)
+
+    for opt in optimizations[:max_suggestions]:
         plan.add_optimization(**opt)
 
     return plan
