@@ -37,6 +37,13 @@ from tripwires import TripwireEngine, TripwireContext
 from verification_budget import BudgetTracker, Budget, get_budget_for_task_class
 from action_gates import ActionGate, GateContext
 
+# Optional: ContinuationManager for calibration tuning sessions
+try:
+    from continuation_manager import ContinuationManager, get_global_manager
+    CONTINUATION_MANAGER_AVAILABLE = True
+except ImportError:
+    CONTINUATION_MANAGER_AVAILABLE = False
+
 
 def load_history(history_path: Path) -> List[Dict]:
     """Load calibration history from JSONL"""
@@ -391,6 +398,57 @@ def main():
             pass
 
         sys.exit(0)
+
+
+# Calibration Tuning Utilities (for Week 4 work)
+
+def start_calibration_session(task_id: Optional[str] = None) -> Optional[str]:
+    """
+    Start a calibration tuning session with automatic continuation management
+
+    Args:
+        task_id: Optional task identifier for this calibration session
+
+    Returns:
+        continuation_id if ContinuationManager available, None otherwise
+
+    Example:
+        continuation_id = start_calibration_session("threshold-tuning")
+        # ... perform calibration work with Zen MCP ...
+        complete_calibration_session()
+    """
+    if not CONTINUATION_MANAGER_AVAILABLE:
+        return None
+
+    manager = get_global_manager()
+    return manager.start_task("calibration-tuning", task_id)
+
+
+def continue_calibration_session() -> Optional[str]:
+    """
+    Continue existing calibration session (reuses continuation_id)
+
+    Returns:
+        continuation_id if session active, None otherwise
+    """
+    if not CONTINUATION_MANAGER_AVAILABLE:
+        return None
+
+    manager = get_global_manager()
+    return manager.continue_task("calibration-tuning")
+
+
+def complete_calibration_session():
+    """
+    Mark calibration session as complete
+
+    Should be called when threshold tuning or calibration work is finished.
+    """
+    if not CONTINUATION_MANAGER_AVAILABLE:
+        return
+
+    manager = get_global_manager()
+    manager.complete_task("calibration-tuning")
 
 
 if __name__ == "__main__":
