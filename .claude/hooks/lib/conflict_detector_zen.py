@@ -7,7 +7,7 @@ Provides structured conflict analysis with severity levels and resolutions.
 Features:
 - Response caching (hash-based) to avoid redundant API calls
 - Retry logic with exponential backoff for transient failures
-- Continuation ID support for conversation context
+- Continuation ID support for conversation context (manual or automated via ContinuationManager)
 - Graceful fallback to heuristics
 
 Based on Zen MCP consultation guidance:
@@ -23,6 +23,12 @@ import os
 import hashlib
 import time
 from pathlib import Path
+
+try:
+    from .continuation_manager import get_or_start_task, complete_task
+    CONTINUATION_MANAGER_AVAILABLE = True
+except ImportError:
+    CONTINUATION_MANAGER_AVAILABLE = False
 
 try:
     # Import Zen MCP if available (will be available in Claude Code context)
@@ -94,16 +100,31 @@ Severity levels:
 If no conflicts are found, "conflicts_found" should be false and "conflicting_pairs" should be an empty list.
 """
 
-    def __init__(self, working_directory: str, continuation_id: Optional[str] = None):
+    def __init__(self, working_directory: str, continuation_id: Optional[str] = None,
+                 auto_manage_continuation: bool = False, task_id: Optional[str] = None):
         """
         Initialize conflict detector
 
         Args:
             working_directory: Absolute path to working directory for Zen MCP
-            continuation_id: Optional continuation ID for conversation context
+            continuation_id: Optional manual continuation ID for conversation context
+            auto_manage_continuation: Use ContinuationManager for automatic lifecycle (default: False)
+            task_id: Optional task identifier for auto-managed continuation (used with auto_manage_continuation)
         """
         self.working_directory = working_directory
-        self.continuation_id = continuation_id
+        self.auto_manage_continuation = auto_manage_continuation
+        self.task_id = task_id
+
+        # Continuation ID setup
+        if auto_manage_continuation and CONTINUATION_MANAGER_AVAILABLE:
+            # Use ContinuationManager for automatic lifecycle
+            self.continuation_id = get_or_start_task("conflict-detection", task_id)
+            self._managed = True
+        else:
+            # Manual continuation ID (existing behavior)
+            self.continuation_id = continuation_id
+            self._managed = False
+
         self._zen_mcp_available = self._check_zen_mcp_availability()
         self._cache = {}  # In-memory cache: {evidence_hash: (result, timestamp)}
         self._cache_ttl = 300  # 5 minutes TTL
@@ -444,21 +465,51 @@ Now, analyze the provided evidence list and generate the JSON response."""
         # Cap at 1.0
         return min(1.0, risk_score)
 
+    def complete_task(self):
+        """
+        Complete the managed task (if using ContinuationManager)
+
+        Should be called when conflict detection session is finished.
+        Only effective if auto_manage_continuation=True.
+        """
+        if self._managed and CONTINUATION_MANAGER_AVAILABLE:
+            complete_task("conflict-detection")
+
 
 def detect_conflicts_via_zen(evidence: List[Evidence],
-                             working_directory: str) -> Tuple[float, List[Conflict]]:
+                             working_directory: str,
+                             auto_manage: bool = False,
+                             task_id: Optional[str] = None) -> Tuple[float, List[Conflict]]:
     """
     Convenience function for conflict detection
 
     Args:
         evidence: List of evidence to analyze
         working_directory: Working directory for Zen MCP
+        auto_manage: Use ContinuationManager for automatic lifecycle (default: False)
+        task_id: Optional task identifier for auto-managed continuation
 
     Returns:
         Tuple of (contradiction_risk_score, conflicts_list)
+
+    Example:
+        # Manual continuation ID (existing behavior)
+        risk, conflicts = detect_conflicts_via_zen(evidence, cwd)
+
+        # Automatic continuation management
+        risk, conflicts = detect_conflicts_via_zen(evidence, cwd, auto_manage=True)
     """
-    detector = ConflictDetectorZen(working_directory)
+    detector = ConflictDetectorZen(
+        working_directory,
+        auto_manage_continuation=auto_manage,
+        task_id=task_id
+    )
     result = detector.detect_conflicts(evidence)
+
+    # Auto-complete task if managed
+    if auto_manage:
+        detector.complete_task()
+
     return result.contradiction_risk, result.conflicts
 
 
