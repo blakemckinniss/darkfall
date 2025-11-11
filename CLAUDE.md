@@ -198,3 +198,262 @@ No manual configuration needed - hooks auto-detect project characteristics and a
 **NOTES.md requires periodic manual cleanup** - Use `/notes:cleanup` to review and remove completed critical items from `docs/NOTES.md`. Automated cleanup was disabled due to performance constraints.
 
 Project-specific notes and configuration details are documented in [docs/ADR.md](docs/ADR.md).
+
+---
+
+## 🎯 Confidence Calibration System
+
+**Status:** Active (as of 2025-11-11)  
+**Documentation:** See [docs/ADR.md](docs/ADR.md#adr-cc001-confidence-calibration-system-for-claude-code-hooks)
+
+### Overview
+
+The confidence calibration system provides systematic confidence assessment for Claude Code responses through:
+- Task complexity classification (atomic/routine/complex/risky/open_world)
+- Calibrated confidence scores (not gut feelings)
+- Safety tripwires and verification budgets
+- Conflict detection via Zen MCP
+- Continuous learning from outcomes
+
+### How It Works
+
+**On Every User Prompt:**
+1. `confidence-classifier.sh` analyzes your request
+2. Classifies task complexity (atomic → open_world)
+3. Displays rubric requirements Claude must follow
+4. Shows verification budget constraints
+
+**After Claude Responds:**
+1. `confidence-auditor.py` extracts confidence rubric from response
+2. Validates metrics and runs conflict detection
+3. Recalculates calibrated confidence scores
+4. Applies safety tripwires
+5. Determines gate decision (proceed/caution/ask/stop)
+6. Logs to `confidence_history.jsonl`
+
+### Rubric Format
+
+Claude outputs a JSON rubric at the end of every response:
+
+```json
+{
+  "task_summary": "Brief description of what was done",
+  "task_class": "routine",
+  "axes": {
+    "novelty": 0.2,
+    "externality": 0.1,
+    "blast_radius": 0.15,
+    "reversibility": 0.9,
+    "exposure": 0.0
+  },
+  "claims": [
+    {"claim": "...", "support": "..."}
+  ],
+  "evidence": [
+    {
+      "id": "e1",
+      "kind": "code|web|tool|empirical",
+      "where": "source location",
+      "quote": "supporting quote",
+      "independence_key": "source domain",
+      "credibility": 0.95,
+      "timestamp": "2025-11-11T04:00:00Z"
+    }
+  ],
+  "checks": [
+    {"name": "test", "status": "pass", "details": "..."}
+  ],
+  "assumptions": [
+    {"assumption": "...", "risk_level": "low|medium|high", "mitigation": "..."}
+  ],
+  "conflicts": [],
+  "metrics": {
+    "spec_completeness": 0.95,
+    "context_grounding": 0.90,
+    "tooling_path": 1.0,
+    "empirical_verification": 0.85,
+    "source_diversity": 0.7,
+    "time_relevance": 1.0,
+    "reproducibility": 0.95,
+    "assumption_risk": 0.15,
+    "contradiction_risk": 0.0,
+    "novelty_penalty": 0.05
+  },
+  "confidence": {
+    "p_raw": 0.92,
+    "p_correct_mean": 0.90,
+    "p_correct_low": 0.85,
+    "bucket": "high_confidence"
+  },
+  "risk": {
+    "impact": 0.15,
+    "expected_risk": 0.0225
+  },
+  "budgets": {
+    "actions_used": 5,
+    "actions_max": 10,
+    "time_used": 60,
+    "time_max": 120
+  },
+  "gate": "proceed",
+  "attribution": ["sources used"],
+  "rationale": "Why this confidence level and gate decision",
+  "timestamp": "2025-11-11T04:00:00Z"
+}
+```
+
+### Task Classes
+
+| Class | Confidence | Budget | Mandatory Checks | Example |
+|-------|-----------|--------|------------------|---------|
+| **Atomic** | p≥0.85 | 5 actions, 30s | None | Fix typo, single-file edit |
+| **Routine** | p≥0.75 | 10 actions, 120s | None | Multi-file refactor, standard pattern |
+| **Complex** | p≥0.70 | 15 actions, 300s | None | New architecture, novel pattern |
+| **Risky** | p≥0.70 | 20 actions, 600s | dry_run + backup | Production change, irreversible |
+| **Open World** | p≥0.65 | 15 actions, 300s | WebSearch (≥2 sources) | External research, new library |
+
+### Verification Budget
+
+**Purpose:** Prevent unbounded work on uncertain tasks
+
+**Allowed Tools per Class:**
+- **Atomic**: Read, Grep, Glob
+- **Routine**: +Bash, WebSearch
+- **Complex**: +WebFetch
+- **Risky/Open World**: All tools
+
+**Budget Enforcement:**
+- Hard limit: Task stops if exceeded (gate = "ask")
+- Soft limit: Warning at 80% consumption
+- Excuse field: Can justify overrun in rubric
+
+### Safety Tripwires
+
+**Automatic Gate Overrides:**
+
+1. **OPEN_WORLD_SINGLE_SOURCE**
+   - If: open_world task + <2 independent sources
+   - Then: gate = "caution"
+
+2. **RISKY_NO_EMPIRICAL**
+   - If: risky task + empirical_verification < 0.3
+   - Then: gate = "ask"
+
+3. **CONTRADICTION_DETECTED**
+   - If: contradiction_risk > 0.4
+   - Then: gate = "stop"
+
+4. **IRREVERSIBLE_NO_BACKUP**
+   - If: reversibility < 0.5 + no backup + no dry_run
+   - Then: gate = "stop"
+
+5. **PRODUCTION_NO_TESTS**
+   - If: exposure > 0.5 + weak test coverage
+   - Then: gate = "ask"
+
+### Gate Decisions
+
+**Proceed:** Low risk, high confidence → Execute normally
+
+**Caution:** Medium risk → Suggest additional verification, proceed with care
+
+**Ask:** High risk or uncertainty → Require user approval before proceeding
+
+**Stop:** Critical risk → Block execution until risk mitigated
+
+### Troubleshooting
+
+**Hook not firing:**
+- Restart Claude Code to load updated settings
+- Check `.claude/settings.json` has correct hook paths
+- Verify hooks are executable: `chmod +x .claude/hooks/*.{sh,py}`
+
+**JSON parse errors:**
+- Check rubric follows exact schema (see `example_rubric.json`)
+- Ensure all required fields present
+- Validate JSON syntax (no trailing commas, proper quotes)
+
+**Rubric not extracted:**
+- Must be in markdown code block: ` ```json ... ``` `
+- Must include required keys: task_summary, task_class, confidence, gate
+- Place at end of response for visibility
+
+**Confidence too low:**
+- Add more evidence with sources and timestamps
+- Increase empirical_verification (run tests, verify claims)
+- Reduce assumption_risk (validate assumptions)
+- Check for contradictions in evidence
+
+**Budget exceeded:**
+- Simplify task or break into smaller pieces
+- Use faster tools (Grep instead of manual search)
+- Cache intermediate results
+- Add justification in "excuse" field if necessary
+
+### Performance
+
+**Latency:**
+- UserPromptSubmit: ~5s (task classification)
+- PostToolUse: ~10s (audit + calibration)
+- Total overhead: ~15s per task
+
+**Optimization:**
+- Caching: 5-minute TTL for Zen MCP responses
+- Retry logic: 3 attempts with exponential backoff
+- Continuation ID: Session context preservation
+
+### Calibration Data
+
+**Location:** `.claude/confidence_history.jsonl`
+
+**Format:** One JSON rubric per line (JSONL)
+
+**Outcome Tracking:** (Week 4 feature)
+- Mark tasks as success/failure
+- Used for calibration improvement
+- Retrain models weekly
+
+### Disabling the System
+
+**Temporary:** Comment out hooks in `.claude/settings.json`
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      // {"type": "command", "command": "...confidence-classifier.sh", ...}
+    ],
+    "PostToolUse": [
+      // {"type": "command", "command": "...confidence-auditor.py", ...}
+    ]
+  }
+}
+```
+
+**Permanent:** Remove hook entries entirely
+
+### Examples
+
+**Good Rubric (High Confidence):**
+- Clear evidence with sources and timestamps
+- Empirical verification (tests run, output checked)
+- Multiple independent sources
+- Low assumption risk
+- No contradictions
+
+**Poor Rubric (Low Confidence):**
+- No evidence backing claims
+- Assumptions not validated
+- Single source or no external research
+- Contradictions in evidence
+- No empirical verification
+
+### References
+
+- Full documentation: [docs/ADR.md](docs/ADR.md#adr-cc001-confidence-calibration-system-for-claude-code-hooks)
+- System architecture: `.claude/hooks/CONFIDENCE_SYSTEM.md`
+- Example rubric: `.claude/hooks/example_rubric.json`
+- Bootstrap data: `.claude/hooks/synthetic_history_seed.jsonl`
+
+---
+

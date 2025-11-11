@@ -982,3 +982,378 @@ As the project evolves, document decisions for:
 - Analytics/telemetry implementation
 - Monetization/pricing model
 - Localization/i18n approach
+
+---
+
+## ADR-CC001: Confidence Calibration System for Claude Code Hooks
+
+**Date:** 2025-11-11  
+**Status:** Accepted  
+**Context:** Claude Code hook system for self-calibrating confidence assessment  
+
+### Context
+
+Claude Code lacks a systematic way to assess and calibrate confidence in its responses. This leads to:
+- Overconfidence in uncertain situations
+- Underconfidence in well-understood tasks
+- No feedback loop for improving accuracy over time
+- Difficulty distinguishing between task complexity levels
+
+**Problem:** How do we build a confidence calibration system that:
+1. Accurately assesses task complexity and risk
+2. Provides calibrated confidence scores (not just gut feelings)
+3. Learns from outcomes to improve over time
+4. Integrates seamlessly into the hook system
+5. Performs efficiently (<200ms target)
+
+### Decision
+
+Implement a **4-tier confidence calibration framework** based on:
+- Task classification (atomic/routine/complex/risky/open_world)
+- Multi-axis risk assessment (novelty, externality, blast radius, reversibility, exposure)
+- Bayesian calibration with historical outcomes
+- Safety tripwires and verification budgets
+- Zen MCP integration for conflict detection
+
+### Mathematical Framework
+
+#### 1. Task Classification
+
+**Classes:**
+- **Atomic** (p≥0.85): Single-file edits, simple fixes, <5 actions
+- **Routine** (p≥0.75): Multi-file changes, standard patterns, 5-10 actions
+- **Complex** (p≥0.70): Architecture changes, new patterns, 10-15 actions
+- **Risky** (p≥0.70): Production impact, irreversible, requires dry-run
+- **Open World** (p≥0.65): External research, novel solutions, 15+ actions
+
+**Classification Logic:**
+```python
+if blast_radius < 0.1 and actions <= 5:
+    return "atomic"
+elif risk_score > 0.6 or reversibility < 0.5:
+    return "risky"
+elif externality > 0.7 or novelty > 0.7:
+    return "open_world"
+elif complexity_score > 0.6:
+    return "complex"
+else:
+    return "routine"
+```
+
+#### 2. Confidence Model
+
+**Raw Confidence (p_raw):**
+```python
+logit = (
+    spec_completeness * 2.0 +
+    context_grounding * 1.5 +
+    tooling_path * 1.0 +
+    empirical_verification * 2.5 +
+    source_diversity * 0.8 +
+    time_relevance * 0.5 +
+    reproducibility * 1.2 -
+    assumption_risk * 1.5 -
+    contradiction_risk * 2.0 -
+    novelty_penalty * 1.0
+)
+p_raw = 1 / (1 + exp(-logit))
+```
+
+**Calibrated Confidence (p_correct_mean):**
+- **Platt Scaling** (if samples ≥ 30): `p_cal = 1 / (1 + exp(-(A*p_raw + B)))`
+- **Isotonic Regression** (if samples ≥ 50): Non-parametric monotonic fit
+- **Fallback**: Conservative discount: `p_cal = p_raw * 0.85`
+
+**Conservative Lower Bound (p_correct_low):**
+```python
+# Beta distribution with Wilson score interval
+successes, failures = get_bucket_history(bucket)
+alpha, beta_param = successes + 1, failures + 1
+p_correct_low = beta.ppf(0.05, alpha, beta_param)  # 5th percentile
+```
+
+#### 3. Impact Model
+
+**Three-Axis Assessment:**
+```python
+impact = (
+    (1 - reversibility) * 0.4 +  # How hard to undo?
+    blast_radius * 0.4 +          # How much affected?
+    exposure * 0.2                # Production vs dev?
+)
+```
+
+**Expected Risk:**
+```python
+expected_risk = impact * (1 - p_correct_low)
+```
+
+#### 4. Gate Decisions
+
+**Decision Thresholds:**
+```python
+if expected_risk < 0.05:
+    gate = "proceed"
+elif expected_risk < 0.15:
+    gate = "caution"  # Suggest additional verification
+elif expected_risk < 0.30:
+    gate = "ask"      # Require user approval
+else:
+    gate = "stop"     # Block until risk mitigated
+```
+
+**Tripwire Overrides:**
+- No empirical verification + risky task → Force "ask"
+- Single source + open-world → Force "caution"
+- Contradiction detected → Force "stop"
+- Missing dry-run + irreversible → Force "stop"
+- Budget exceeded → Force "ask"
+
+### Architecture
+
+#### Component Structure
+
+```
+.claude/hooks/
+├── lib/                          # Core mathematical models
+│   ├── task_classifier.py        # 5-class classification
+│   ├── confidence_model.py       # Logistic regression
+│   ├── impact_model.py           # Risk assessment
+│   ├── beta_bounds.py            # Bayesian bounds
+│   ├── calibration_engine.py     # Platt + Isotonic
+│   ├── conflict_detector_zen.py  # Zen MCP integration
+│   ├── nli_heuristics.py         # Fallback NLI
+│   ├── tripwires.py              # Safety rules
+│   ├── verification_budget.py    # Action/time limits
+│   ├── action_gates.py           # Gate logic
+│   └── rubric_schema.py          # JSON validation
+├── confidence-classifier.sh      # UserPromptSubmit hook
+├── confidence-auditor.py         # PostToolUse hook
+├── synthetic-bootstrap.py        # 100-entry seed data
+└── CONFIDENCE_SYSTEM.md          # Full documentation
+```
+
+#### Hook Integration
+
+**UserPromptSubmit Hook** (`confidence-classifier.sh`):
+1. Classifies task from user prompt keywords
+2. Displays rubric requirements to Claude
+3. Shows verification budget constraints
+4. Lists mandatory checks (e.g., WebSearch for open-world)
+
+**PostToolUse Hook** (`confidence-auditor.py`):
+1. Extracts confidence rubric JSON from Claude's response
+2. Calls conflict detector (Zen MCP or heuristic fallback)
+3. Recalculates confidence with updated metrics
+4. Loads historical data for calibration
+5. Applies tripwires and budget constraints
+6. Determines gate decision
+7. Logs to `confidence_history.jsonl`
+8. Returns audit guidance to Claude
+
+#### Performance Optimizations
+
+**Caching** (5-minute TTL):
+```python
+cache_key = sha256(canonical_evidence)
+if cached := cache.get(cache_key):
+    return cached
+```
+
+**Retry Logic** (3 attempts, exponential backoff):
+```python
+for attempt in range(3):
+    try:
+        return zen_mcp_call()
+    except (ConnectionError, Timeout):
+        time.sleep(0.1 * (2 ** attempt))
+```
+
+**Continuation ID** (session context):
+```python
+# Preserve across retries, exclude from cache key
+zen_mcp_call(continuation_id=session_id)
+```
+
+### Zen MCP Integration
+
+**Model Selection:**
+- **gemini-2.5-pro**: Fast responses, research, conflict detection
+- **claude-opus**: Coding tasks, instruction-intensive
+- **gpt-5**: Planning, brainpower, systematic thinking
+
+**Conflict Detection Prompt:**
+```
+System: Analyze evidence for contradictions. Return JSON only.
+User: Evidence list with sources, timestamps, credibility
+Response: {
+  "conflicts_found": boolean,
+  "conflicting_pairs": [
+    {"evidence_ids": [1,2], "severity": "high|medium|low", ...}
+  ]
+}
+```
+
+**Fallback Strategy:**
+1. Try Zen MCP (with cache check first)
+2. On failure: NLI heuristics (keyword + pattern matching)
+3. On total failure: assume no conflicts (conservative)
+
+### Calibration Strategy
+
+#### Synthetic Bootstrap (Week 1)
+- 100 hand-crafted seed entries across all buckets
+- Representative task distributions
+- Balanced outcomes (60% success, 40% failure)
+- Used for initial calibration curves
+
+#### Pilot Testing (Week 4)
+- 50-task real-world dataset
+- Track outcomes manually or via success/failure markers
+- Tune thresholds based on calibration error
+- Aim for Brier score < 0.15
+
+#### Continuous Improvement
+- Log every rubric to `confidence_history.jsonl`
+- Retrain calibration models weekly
+- Adjust tripwire thresholds based on false positive rate
+- Review gate effectiveness (% of "stop" that were actually risky)
+
+### Verification Budgets
+
+**Purpose:** Prevent unbounded work on uncertain tasks
+
+**Budget Constraints per Task Class:**
+| Class       | Max Actions | Max Time | Allowed Tools                    | Mandatory Checks |
+|-------------|-------------|----------|----------------------------------|------------------|
+| Atomic      | 5           | 30s      | Read, Grep, Glob                 | None             |
+| Routine     | 10          | 120s     | +Bash, WebSearch                 | None             |
+| Complex     | 15          | 300s     | +WebFetch                        | None             |
+| Risky       | 20          | 600s     | All                              | dry_run + backup |
+| Open World  | 15          | 300s     | All                              | WebSearch        |
+
+**Enforcement:**
+- Hard limits: Stop if exceeded (gate = "ask")
+- Soft limits: Warning at 80% consumption
+- Excuse field: Allow budget overrun with justification
+
+### Tripwires
+
+**Five Critical Safety Rules:**
+
+1. **OPEN_WORLD_SINGLE_SOURCE**
+   - Trigger: open_world task + source_count < 2
+   - Action: Force "caution" gate
+   - Rationale: External research requires diverse sources
+
+2. **RISKY_NO_EMPIRICAL**
+   - Trigger: risky task + empirical_verification < 0.3
+   - Action: Force "ask" gate
+   - Rationale: High-impact changes need testing
+
+3. **CONTRADICTION_DETECTED**
+   - Trigger: contradiction_risk > 0.4
+   - Action: Force "stop" gate
+   - Rationale: Conflicting evidence = halt until resolved
+
+4. **IRREVERSIBLE_NO_BACKUP**
+   - Trigger: reversibility < 0.5 + no backup + no dry_run
+   - Action: Force "stop" gate
+   - Rationale: Can't undo = must simulate first
+
+5. **PRODUCTION_NO_TESTS**
+   - Trigger: exposure > 0.5 + test_coverage = "weak_tests"
+   - Action: Force "ask" gate
+   - Rationale: Production code needs good tests
+
+### Consequences
+
+**Benefits:**
+- ✅ Systematic confidence assessment (not gut feelings)
+- ✅ Calibration improves with feedback (Bayesian learning)
+- ✅ Safety tripwires prevent high-risk mistakes
+- ✅ Verification budgets bound work on uncertain tasks
+- ✅ Zen MCP conflict detection catches contradictions
+- ✅ Performance optimized (caching, retry, continuation_id)
+
+**Trade-offs:**
+- ⚠️ Adds ~15s latency (5s classify + 10s audit)
+- ⚠️ Requires rubric discipline from Claude
+- ⚠️ JSON parsing can fail on malformed rubrics
+- ⚠️ Calibration requires outcome tracking (manual initially)
+- ⚠️ Zen MCP costs $ per API call
+
+**Risks:**
+- 📊 Calibration drift if outcomes not tracked
+- 📊 Cache stale data (5min TTL mitigates)
+- 📊 Overfitting to synthetic bootstrap data
+- 📊 Tripwires too strict (false positives)
+- 📊 Rubric gaming (inflated confidence)
+
+**Mitigations:**
+- Weekly calibration retraining
+- Pilot testing with real tasks (Week 4)
+- Threshold tuning based on empirical data
+- Rubric auditing for consistency
+- Fallback to heuristics if Zen MCP unavailable
+
+### Implementation Timeline
+
+**Week 1 (Days 1-7):** Core Mathematical Models ✅
+- Task classification, confidence model, impact model
+- Bayesian bounds, calibration engine
+- Synthetic bootstrap data generation
+
+**Week 2 (Days 8-14):** Conflict Detection + Safety ✅
+- Zen MCP conflict detector with caching/retry
+- NLI heuristics fallback
+- Tripwires and verification budgets
+- Action gates
+
+**Week 3 (Days 15-21):** Hook Integration ✅
+- confidence-classifier.sh (UserPromptSubmit)
+- confidence-auditor.py (PostToolUse)
+- JSON schema validation
+- Settings integration
+
+**Week 4 (Days 22-28):** Pilot + Polish (In Progress)
+- Outcome tracking mechanism
+- Calibration metrics report
+- Threshold tuning
+- Documentation completion
+
+### Future Work
+
+**Phase 1: Enhanced Features**
+- File-based cache persistence
+- Cache size limits (LRU eviction)
+- Metrics dashboard (hit rates, latency)
+- Automated outcome tracking via hook analysis
+
+**Phase 2: Advanced Calibration**
+- Per-user calibration profiles
+- Task-specific calibration curves
+- Temporal drift detection
+- Active learning (query hard cases)
+
+**Phase 3: Integration**
+- GitHub PR comments with confidence scores
+- Slack notifications for risky tasks
+- Dashboard UI for calibration curves
+- A/B testing framework
+
+### References
+
+- **Platt Scaling:** Platt, J. (1999). "Probabilistic Outputs for Support Vector Machines"
+- **Isotonic Regression:** Zadrozny & Elkan (2002). "Transforming Classifier Scores into Accurate Multiclass Probability Estimates"
+- **Bayesian Bounds:** Wilson Score Interval with Beta priors
+- **Brier Score:** Brier, G.W. (1950). "Verification of Forecasts Expressed in Terms of Probability"
+
+### Related Decisions
+
+- See `.claude/hooks/CONFIDENCE_SYSTEM.md` for detailed usage guide
+- See `synthetic_history_seed.jsonl` for bootstrap data examples
+- See `example_rubric.json` for complete rubric schema
+
+---
+
