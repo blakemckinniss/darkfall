@@ -1169,11 +1169,61 @@ for attempt in range(3):
         time.sleep(0.1 * (2 ** attempt))
 ```
 
-**Continuation ID** (session context):
+**Continuation ID Strategy** (task-scoped context):
+
+**Critical Design Decision:**
+- **Cache keys MUST include continuation_id** to prevent stale responses
+- **Task-scoped > Session-wide** for predictability and reliability
+- **Reset on topic change** to prevent context pollution
+
 ```python
-# Preserve across retries, exclude from cache key
-zen_mcp_call(continuation_id=session_id)
+# CORRECT: Cache key includes continuation_id
+def _create_cache_key(self, evidence: List[Evidence]) -> str:
+    evidence_hash = sha256(canonical_evidence).hexdigest()
+    if self.continuation_id:
+        return f"{evidence_hash}:{self.continuation_id}"  # Context-aware caching
+    return evidence_hash
+
+# Task-scoped lifecycle
+detector = ConflictDetectorZen(
+    working_directory=cwd,
+    continuation_id=f"conflict-detection-{task_id}"  # One ID per logical task
+)
 ```
+
+**Why Task-Scoped Wins Over Session-Wide:**
+
+| Aspect | Task-Scoped ✅ (Implemented) | Session-Wide ❌ (Avoided) |
+|--------|------------------------------|---------------------------|
+| **Context Relevance** | High - focused on specific task | Variable - cross-task pollution |
+| **Predictability** | High - consistent behavior | Low - unpredictable model drift |
+| **Debugging** | Easy - short relevant history | Very difficult - mixed operations |
+| **Quality** | Reliable | Can degrade from early confusion |
+| **Cost** | Low (short contexts) | High (growing context window) |
+| **Latency** | Low (small payloads) | Higher (large payloads) |
+
+**Logical Task Boundaries:**
+- **Conflict Detection**: One continuation_id per evidence analysis session
+- **Task Classification**: New ID per user prompt (no cross-contamination)
+- **Calibration Tuning**: One ID per tuning iteration
+- **Multi-Step Analysis**: Reuse ID for follow-ups/refinements within same goal
+
+**Lifecycle Management:**
+- Create new continuation_id when user starts distinct logical operation
+- Reuse same ID for follow-ups, clarifications, related sub-tasks
+- Reset to new ID when user clearly shifts to different logical task
+- Optimal conversation length: 5-20 turns before considering reset
+- Avoid session-wide IDs (risk of context drift and quality degradation)
+
+**Performance & Cost Implications:**
+- Longer conversations under single ID → larger payloads → higher costs
+- Task-scoped IDs keep contexts short → faster inference, lower token usage
+- Cache hit rate improves with task-scoped keys (more reuse within task)
+
+**Critical Bug Prevention:**
+- ❌ **WRONG**: Cache key without continuation_id → serves stale responses
+- ✅ **CORRECT**: Cache key with continuation_id → context-aware results
+- Example: Same evidence analyzed with different conversation context will correctly trigger new Zen MCP call instead of returning cached result from first analysis
 
 ### Zen MCP Integration
 
