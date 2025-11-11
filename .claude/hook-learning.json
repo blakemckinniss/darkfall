@@ -7,10 +7,10 @@
     "default_threshold": 50
   },
   "quality_high_complexity": {
-    "threshold": 24.603750000000005,
-    "trigger_count": 4,
-    "last_trigger": "2025-11-11T03:59:30.091036+00:00",
-    "cooldown_until": "2025-11-11T05:00:13.936239+00:00",
+    "threshold": 36.90562500000001,
+    "trigger_count": 5,
+    "last_trigger": "2025-11-11T05:07:42.753743+00:00",
+    "cooldown_until": "2025-11-11T06:08:29.323775+00:00",
     "default_threshold": 10
   },
   "quality_deep_nesting": {
@@ -22,8 +22,8 @@
   },
   "quality_debug_statements": {
     "threshold": 8.20125,
-    "trigger_count": 4,
-    "last_trigger": "2025-11-11T03:59:30.091500+00:00",
+    "trigger_count": 5,
+    "last_trigger": "2025-11-11T05:08:29.324297+00:00",
     "cooldown_until": "2025-11-11T04:59:30.091406+00:00",
     "default_threshold": 3
   },
