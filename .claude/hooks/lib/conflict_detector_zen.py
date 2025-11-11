@@ -101,14 +101,14 @@ If no conflicts are found, "conflicts_found" should be false and "conflicting_pa
 """
 
     def __init__(self, working_directory: str, continuation_id: Optional[str] = None,
-                 auto_manage_continuation: bool = False, task_id: Optional[str] = None):
+                 auto_manage_continuation: bool = True, task_id: Optional[str] = None):
         """
         Initialize conflict detector
 
         Args:
             working_directory: Absolute path to working directory for Zen MCP
-            continuation_id: Optional manual continuation ID for conversation context
-            auto_manage_continuation: Use ContinuationManager for automatic lifecycle (default: False)
+            continuation_id: Optional manual continuation ID for conversation context (ignored if auto_manage_continuation=True)
+            auto_manage_continuation: Use ContinuationManager for automatic lifecycle (default: True, recommended)
             task_id: Optional task identifier for auto-managed continuation (used with auto_manage_continuation)
         """
         self.working_directory = working_directory
@@ -478,7 +478,7 @@ Now, analyze the provided evidence list and generate the JSON response."""
 
 def detect_conflicts_via_zen(evidence: List[Evidence],
                              working_directory: str,
-                             auto_manage: bool = False,
+                             auto_manage: bool = True,
                              task_id: Optional[str] = None) -> Tuple[float, List[Conflict]]:
     """
     Convenience function for conflict detection
@@ -486,18 +486,18 @@ def detect_conflicts_via_zen(evidence: List[Evidence],
     Args:
         evidence: List of evidence to analyze
         working_directory: Working directory for Zen MCP
-        auto_manage: Use ContinuationManager for automatic lifecycle (default: False)
+        auto_manage: Use ContinuationManager for automatic lifecycle (default: True, recommended)
         task_id: Optional task identifier for auto-managed continuation
 
     Returns:
         Tuple of (contradiction_risk_score, conflicts_list)
 
     Example:
-        # Manual continuation ID (existing behavior)
+        # Automatic continuation management (default, recommended)
         risk, conflicts = detect_conflicts_via_zen(evidence, cwd)
 
-        # Automatic continuation management
-        risk, conflicts = detect_conflicts_via_zen(evidence, cwd, auto_manage=True)
+        # Manual continuation ID (opt-out of auto-management)
+        risk, conflicts = detect_conflicts_via_zen(evidence, cwd, auto_manage=False)
     """
     detector = ConflictDetectorZen(
         working_directory,
